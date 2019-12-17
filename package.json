@@ -1,0 +1,37 @@
+{
+  "name": "@eduzz/rabbit",
+  "private": false,
+  "description": "An simplified amqp client",
+  "version": "0.0.1",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "license": "MIT",
+  "scripts": {
+    "format": "prettier-eslint src/**/*.ts --write",
+    "lint": "eslint --ext .ts src",
+    "build": "tsc",
+    "prepare": "tsc"
+  },
+  "devDependencies": {
+    "@types/amqplib": "^0.5.13",
+    "@types/node": "^12.12.20",
+    "@typescript-eslint/eslint-plugin": "^2.12.0",
+    "@typescript-eslint/parser": "^2.12.0",
+    "babel-eslint": "^10.0.3",
+    "eslint": "^6.7.2",
+    "eslint-config-prettier": "^6.7.0",
+    "eslint-plugin-prettier": "^3.1.2",
+    "prettier": "^1.19.1",
+    "prettier-eslint-cli": "^5.0.0",
+    "ts-node": "^8.5.4",
+    "ts-node-dev": "^1.0.0-pre.44",
+    "typescript": "^3.7.3",
+    "amqplib": "^0.5.5"
+  },
+  "peerDependencies": {
+    "amqplib": "^0.5.5"
+  },
+  "keywords": [
+    "amqp"
+  ]
+}
