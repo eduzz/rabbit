@@ -39,11 +39,11 @@ import { myRabbit } from './myRabbit';
 myRabbit
   .queue('my.queue')
   .topic('some.topic')
-  .durable(true)
+  .durable()
   .retryTimeout(60000)
   .listen(async (data) => {
     console.log(data);
     return true;
   });
-  
+
 ```
