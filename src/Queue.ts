@@ -17,7 +17,10 @@ export class Queue {
       retryTimeout: 0,
       nackQueue: `${name}.nack`,
       retryTopic: `${name}.retry`,
-      nackTopic: `${name}.nack`
+      nackTopic: `${name}.nack`,
+      autoDelete: false,
+      exclusive: false,
+      prefetch: 1
     };
   }
 
@@ -45,6 +48,32 @@ export class Queue {
     return this;
   }
 
+  public async ephemeral() {
+    this.options.autoDelete = true;
+
+    const id = Math.ceil(Math.random() * Number.MAX_SAFE_INTEGER);
+
+    this.options.name = `${this.options.name}.${id}`;
+    this.options.nackQueue = `${this.options.name}.nack`;
+    this.options.retryTopic = `${this.options.name}.retry`;
+    this.options.nackTopic = `${this.options.name}.nack`;
+
+    return this;
+  }
+
+  public async exclusive() {
+    this.options.exclusive = true;
+    return this;
+  }
+
+  public async prefetch(quantity: number) {
+    if (quantity <= 0) {
+      throw new Error('prefetch must be greater than zero');
+    }
+
+    this.options.prefetch = quantity;
+  }
+
   public async listen<T>(callback: (data: T, message?: amqp.ConsumeMessage) => Promise<boolean>) {
     if (!this.options.topic) {
       throw new Error('You must specify an topic');
@@ -55,6 +84,8 @@ export class Queue {
 
     await this.configureNackQueue(exchange, ch);
     await this.configureQueue(exchange, ch);
+
+    await ch.prefetch(this.options.prefetch);
 
     const consumeFn = async (msg: amqp.ConsumeMessage | null) => {
       if (!msg) {
@@ -94,6 +125,7 @@ export class Queue {
 
     await ch.assertQueue(this.options.nackQueue, {
       durable: this.options.durable,
+      autoDelete: this.options.autoDelete || false,
       arguments: args
     });
 
@@ -112,6 +144,8 @@ export class Queue {
 
     await ch.assertQueue(this.options.name, {
       durable: this.options.durable,
+      autoDelete: this.options.autoDelete || false,
+      exclusive: this.options.exclusive || false,
       arguments: args
     });
     await ch.bindQueue(this.options.name, exchange, this.options.topic);

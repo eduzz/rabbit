@@ -7,4 +7,7 @@ export interface IQueueOptions {
   nackTopic: string;
   enableNack: boolean;
   retryTimeout: number;
+  autoDelete: boolean;
+  exclusive: boolean;
+  prefetch: number;
 }
