@@ -48,7 +48,7 @@ export class Queue {
     return this;
   }
 
-  public async ephemeral() {
+  public ephemeral() {
     this.options.autoDelete = true;
 
     const id = Math.ceil(Math.random() * Number.MAX_SAFE_INTEGER);
@@ -61,17 +61,18 @@ export class Queue {
     return this;
   }
 
-  public async exclusive() {
+  public exclusive() {
     this.options.exclusive = true;
     return this;
   }
 
-  public async prefetch(quantity: number) {
+  public prefetch(quantity: number) {
     if (quantity <= 0) {
       throw new Error('prefetch must be greater than zero');
     }
 
     this.options.prefetch = quantity;
+    return this;
   }
 
   public async listen<T>(callback: (data: T, message?: amqp.ConsumeMessage) => Promise<boolean>) {
