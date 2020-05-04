@@ -27,6 +27,17 @@ export class Connection {
     return this.channel;
   }
 
+  public registerShutdownSignal() {
+    process.once('SIGINT', async () => {
+      const channel = await this.getChannel();
+      await channel.close();
+      const connection = await this.getConnection();
+      await connection.close();
+    });
+
+    return this;
+  }
+
   public topic(topic: string) {
     return new Publisher(this, topic);
   }
