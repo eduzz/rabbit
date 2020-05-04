@@ -27,12 +27,16 @@ export class Connection {
     return this.channel;
   }
 
+  public async close() {
+    const channel = await this.getChannel();
+    await channel.close();
+    const connection = await this.getConnection();
+    await connection.close();
+  }
+
   public registerShutdownSignal() {
     process.once('SIGINT', async () => {
-      const channel = await this.getChannel();
-      await channel.close();
-      const connection = await this.getConnection();
-      await connection.close();
+      await this.close();
     });
 
     return this;
