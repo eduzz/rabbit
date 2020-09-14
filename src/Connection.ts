@@ -59,7 +59,9 @@ export class Connection {
       return this.connection;
     }
 
-    this.connection = amqp.connect(this.options.dsn);
+    this.connection = amqp.connect(this.options.dsn, {
+      clientProperties: { connection_name: this.options.connectionName }
+    });
 
     return this.connection;
   }
