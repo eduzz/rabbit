@@ -2,7 +2,7 @@
   "name": "@eduzz/rabbit",
   "private": false,
   "description": "An simplified amqp client",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "license": "MIT",

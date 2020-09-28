@@ -78,6 +78,7 @@ export class Queue {
 
   public priority(max: number) {
     this.arguments['x-max-priority'] = max;
+    return this;
   }
 
   public async listen<T>(callback: (data: T, message?: amqp.ConsumeMessage) => Promise<boolean>) {
