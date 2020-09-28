@@ -19,7 +19,7 @@ export class Publisher {
     return this;
   }
 
-  public async send<T = any>(message: T) {
+  public async send<T = any>(message: T, priority?: number) {
     const channel = await this.connection.getChannel();
 
     const msg = Buffer.from(JSON.stringify(message));
@@ -29,6 +29,6 @@ export class Publisher {
       persistent: this.options.deliveryMode === DeliveryMode.Peristent
     };
 
-    return channel.publish(this.connection.getExchange(), this.topic, msg, options);
+    return channel.publish(this.connection.getExchange(), this.topic, msg, { ...options, priority });
   }
 }

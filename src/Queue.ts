@@ -5,6 +5,7 @@ import * as amqp from 'amqplib';
 export class Queue {
   private connection: Connection;
   private options: IQueueOptions;
+  private arguments: { [key: string]: any } = {};
 
   constructor(connection: Connection, name: string) {
     this.connection = connection;
@@ -75,12 +76,16 @@ export class Queue {
     return this;
   }
 
+  public priority(max: number) {
+    this.arguments['x-max-priority'] = max;
+  }
+
   public async listen<T>(callback: (data: T, message?: amqp.ConsumeMessage) => Promise<boolean>) {
     if (!this.options.topic) {
       throw new Error('You must specify an topic');
     }
 
-    const ch = await this.connection.getChannel();
+    const ch = await this.connection.createChannel();
     const exchange = this.connection.getExchange();
 
     await this.configureNackQueue(exchange, ch);
@@ -134,20 +139,16 @@ export class Queue {
   }
 
   private async configureQueue(exchange: string, ch: amqp.Channel) {
-    let args = {};
-
     if (this.options.enableNack) {
-      args = {
-        'x-dead-letter-exchange': exchange,
-        'x-dead-letter-routing-key': this.options.nackTopic
-      };
+      this.arguments['x-dead-letter-exchange'] = exchange;
+      this.arguments['x-dead-letter-routing-key'] = this.options.nackTopic;
     }
 
     await ch.assertQueue(this.options.name, {
       durable: this.options.durable,
       autoDelete: this.options.autoDelete || false,
       exclusive: this.options.exclusive || false,
-      arguments: args
+      arguments: this.arguments
     });
     await ch.bindQueue(this.options.name, exchange, this.options.topic);
 

@@ -27,6 +27,16 @@ export class Connection {
     return this.channel;
   }
 
+  public async createChannel(): Promise<amqp.Channel> {
+    const connection = await this.getConnection();
+
+    const channel = await connection.createChannel();
+
+    channel.assertExchange(this.options.exchange, this.options.exchangeType);
+
+    return channel;
+  }
+
   public async close() {
     const channel = await this.getChannel();
     await channel.close();
