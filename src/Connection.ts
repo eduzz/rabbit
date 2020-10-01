@@ -1,4 +1,5 @@
 import * as amqp from 'amqplib';
+import { DelayQueue } from './DelayQueue';
 import { IConnectionOptions } from './interfaces/IConnectionOptions';
 import { Publisher } from './Publisher';
 import { Queue } from './Queue';
@@ -58,6 +59,10 @@ export class Connection {
 
   public queue(topic: string) {
     return new Queue(this, topic);
+  }
+
+  public delayQueue(topic: string) {
+    return new DelayQueue(this, topic);
   }
 
   public getExchange() {
