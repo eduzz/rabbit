@@ -79,6 +79,10 @@ export class Connection {
     return { status: true, destination: 'buffer', adapter: 'memory' };
   }
 
+  public getPublishersTopics() {
+    return this.publishers.map(p => p.getTopic());
+  }
+
   public getPublishersByTopic(topic: string) {
     return this.publishers.filter(p => p.getTopic() === topic);
   }
