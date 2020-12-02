@@ -8,8 +8,11 @@ import { IFallbackAdapter } from './interfaces/IFallbackAdapter';
 import { IMessage } from './interfaces/IMessage';
 import { Publisher } from './Publisher';
 import { Queue } from './Queue';
+import fs from 'fs';
 
 type closeFn = () => void;
+
+const version = JSON.parse(fs.readFileSync(__dirname + '/../package.json').toString()).version;
 
 export class Connection {
   private connected = false;
@@ -114,9 +117,15 @@ export class Connection {
           continue;
         }
 
-        const connection = await amqp.connect(`${this.options.dsn}?heartbeat=3`, {
-          // eslint-disable-next-line camelcase
-          clientProperties: { connection_name: this.options.connectionName, timeout: 2000 }
+        const separator = this.options.dsn.includes('?') ? '&' : '?';
+
+        const connection = await amqp.connect(`${this.options.dsn}${separator}heartbeat=3`, {
+          clientProperties: {
+            product: `@eduzz/rabbit\nv${version}\n☕`,
+            // eslint-disable-next-line camelcase
+            connection_name: this.options.connectionName,
+            timeout: 2000
+          }
         });
 
         connection.on('error', async err => {
