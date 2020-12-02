@@ -1,11 +1,12 @@
 import { Connection } from './Connection';
+import { DefaultChannel } from './DefaultChannel';
 import { IDelayQueueOptions } from './interfaces/IDelayQueueOptions';
 
-export class DelayQueue {
-  private connection: Connection;
+export class DelayQueue extends DefaultChannel {
   private options: IDelayQueueOptions;
 
   constructor(connection: Connection, name: string) {
+    super();
     this.connection = connection;
 
     this.options = {
@@ -50,7 +51,7 @@ export class DelayQueue {
       throw new Error('You must specify a positive timeout');
     }
 
-    const ch = await this.connection.getChannel();
+    const ch = await this.getChannel();
     const exchange = this.connection.getExchange();
 
     const args = {

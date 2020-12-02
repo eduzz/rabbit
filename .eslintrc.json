@@ -89,10 +89,6 @@
     "@typescript-eslint/adjacent-overload-signatures": [
       "error"
     ],
-    "@typescript-eslint/interface-name-prefix": [
-      "error",
-      "always"
-    ],
     "@typescript-eslint/explicit-member-accessibility": [
       "error",
       {

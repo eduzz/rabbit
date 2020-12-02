@@ -1,6 +1,7 @@
 import { Connection } from './Connection';
 import { IQueueOptions } from './interfaces/IQueueOptions';
 import * as amqp from 'amqplib';
+import { sleep } from './fn';
 
 export class Queue {
   private connection: Connection;
@@ -86,33 +87,52 @@ export class Queue {
       throw new Error('You must specify an topic');
     }
 
-    const ch = await this.connection.createChannel();
-    const exchange = this.connection.getExchange();
+    let active = false;
 
-    await this.configureNackQueue(exchange, ch);
-    await this.configureQueue(exchange, ch);
-
-    await ch.prefetch(this.options.prefetch);
-
-    const consumeFn = async (msg: amqp.ConsumeMessage | null) => {
-      if (!msg) {
-        return;
-      }
-
+    while (true) {
       try {
-        const payload = JSON.parse(msg.content.toString()) as T;
-        const result = await callback(payload, msg);
-        if (!result) {
-          ch.nack(msg, false, false);
-          return;
+        if (active) {
+          await sleep(1000);
+          continue;
         }
-        ch.ack(msg);
-      } catch (err) {
-        ch.nack(msg, false, false);
-      }
-    };
 
-    await ch.consume(this.options.name, consumeFn, { noAck: false });
+        const ch = await this.connection.createChannel(() => {
+          active = false;
+        });
+        const exchange = this.connection.getExchange();
+
+        await this.configureNackQueue(exchange, ch);
+        await this.configureQueue(exchange, ch);
+
+        await ch.prefetch(this.options.prefetch);
+
+        const consumeFn = async (msg: amqp.ConsumeMessage | null) => {
+          if (!msg) {
+            return;
+          }
+
+          try {
+            const payload = JSON.parse(msg.content.toString()) as T;
+            const result = await callback(payload, msg);
+            if (!result) {
+              ch.nack(msg, false, false);
+              return;
+            }
+            ch.ack(msg);
+          } catch (err) {
+            try {
+              ch.nack(msg, false, false);
+            } catch {}
+          }
+        };
+
+        active = true;
+
+        await ch.consume(this.options.name, consumeFn, { noAck: false });
+      } catch (err) {
+        console.log('[rabbit] connection failed');
+      }
+    }
   }
 
   private async configureNackQueue(exchange: string, ch: amqp.Channel) {
