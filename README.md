@@ -67,9 +67,14 @@ await connection
 // Publishing message
 (async () => {
   const publisher = connection.topic('my.topic').persistent();
+
   setInterval(async () => {
-    publisher.send({
+    const payload = {
       number: Math.random() * 1000
+    };
+
+    publisher.send({
+      payload
     });
   }, 1000);
 })();
