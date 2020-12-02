@@ -3,6 +3,7 @@ import { DefaultChannel } from './DefaultChannel';
 import { IPublishOptions, DeliveryMode } from './interfaces/IPublishOptions';
 import { IMessage } from './interfaces/IMessage';
 import { IPublishResult } from './interfaces/IPublishResult';
+import { NoExtraProperties } from './types';
 
 export class Publisher extends DefaultChannel {
   private topic: string;
@@ -30,7 +31,7 @@ export class Publisher extends DefaultChannel {
     return this.topic;
   }
 
-  public async send<T = any>(data: IMessage<T>): Promise<IPublishResult> {
+  public async send<T = any>(data: NoExtraProperties<IMessage<T>>): Promise<IPublishResult> {
     this.connection.initialize();
 
     if (!this.connection.isConnected()) {
@@ -39,7 +40,7 @@ export class Publisher extends DefaultChannel {
 
     const channel = await this.getChannel();
 
-    const msg = Buffer.from(JSON.stringify(data.data));
+    const msg = Buffer.from(JSON.stringify(data.payload));
 
     const options = {
       ...this.options,

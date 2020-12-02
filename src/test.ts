@@ -25,27 +25,13 @@ connection
     return true;
   });
 
-connection
-  .queue('listener.fallback')
-  .topic('listen.topic')
-  .durable(true)
-  .prefetch(10)
-  .retryTimeout(60000)
-  .listen(async message => {
-    console.log('received:', message);
-
-    await sleep(4000);
-
-    return true;
-  });
-
 connection.delayQueue('asasdd.asdasdasd').durable().from('ouvindo.xpto').to('depois.do.delay').timeout(5000).create();
 
 (async () => {
   const publisher = connection.topic('listen.topic').persistent();
 
   while (true) {
-    const result = await publisher.send({ data: 'message' });
+    const result = await publisher.send({ payload: 'message', priority: 1 });
     console.log(result);
     await sleep(1000);
   }

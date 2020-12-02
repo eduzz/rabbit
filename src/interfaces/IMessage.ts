@@ -1,4 +1,4 @@
 export interface IMessage<T> {
-  data: T;
+  payload: T;
   priority?: number;
 }
