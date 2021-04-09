@@ -93,12 +93,12 @@ export class Connection {
     return publisher;
   }
 
-  public queue(topic: string) {
-    return new Queue(this, topic);
+  public queue(name: string) {
+    return new Queue(this, name);
   }
 
-  public delayQueue(topic: string) {
-    return new DelayQueue(this, topic);
+  public delayQueue(name: string) {
+    return new DelayQueue(this, name);
   }
 
   public getExchange() {

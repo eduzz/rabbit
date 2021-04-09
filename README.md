@@ -25,7 +25,7 @@ myRabbit.topic('some.topic').persistent().send({
 });
 ```
 
-Listen to an topic:
+Listen to one or multiple topics:
 
 ```ts
 import { myRabbit } from './myRabbit';
@@ -33,6 +33,7 @@ import { myRabbit } from './myRabbit';
 myRabbit
   .queue('my.queue')
   .topic('some.topic')
+  .topic('another.topic')
   .durable()
   .retryTimeout(60000)
   .listen(async data => {

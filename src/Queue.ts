@@ -13,7 +13,7 @@ export class Queue {
 
     this.options = {
       name,
-      topic: '',
+      topics: [],
       durable: true,
       enableNack: true,
       retryTimeout: 0,
@@ -27,7 +27,7 @@ export class Queue {
   }
 
   public topic(topic: string) {
-    this.options.topic = topic;
+    this.options.topics.push(topic);
     return this;
   }
 
@@ -83,7 +83,7 @@ export class Queue {
   }
 
   public async listen<T>(callback: (data: T, message?: amqp.ConsumeMessage) => Promise<boolean>) {
-    if (!this.options.topic) {
+    if (!this.options.topics) {
       throw new Error('You must specify an topic');
     }
 
@@ -171,7 +171,8 @@ export class Queue {
       exclusive: this.options.exclusive || false,
       arguments: this.arguments
     });
-    await ch.bindQueue(this.options.name, exchange, this.options.topic);
+
+    await Promise.all(this.options.topics.map(topic => ch.bindQueue(this.options.name, exchange, topic)));
 
     if (this.options.enableNack && this.options.retryTimeout) {
       await ch.bindQueue(this.options.name, exchange, this.options.retryTopic);
