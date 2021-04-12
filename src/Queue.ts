@@ -173,7 +173,7 @@ export class Queue {
     });
 
     for (const topic of this.options.topics) {
-      await ch.bindQueue(topic, exchange, topic);
+      await ch.bindQueue(this.options.name, exchange, topic);
     }
 
     if (this.options.enableNack && this.options.retryTimeout) {

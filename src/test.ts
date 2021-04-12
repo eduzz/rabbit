@@ -13,7 +13,7 @@ connection.setFallbackAdapter(new Memory());
 
 connection
   .queue('listener.fallback')
-  .topic('listen.topic', 'another.topic')
+  .topic('listen.topic')
   .durable(true)
   .prefetch(10)
   .retryTimeout(60000)
