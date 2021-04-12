@@ -26,8 +26,8 @@ export class Queue {
     };
   }
 
-  public topic(topic: string) {
-    this.options.topics.push(topic);
+  public topic(...topics: string[]) {
+    this.options.topics.push(...topics);
     return this;
   }
 
@@ -83,8 +83,8 @@ export class Queue {
   }
 
   public async listen<T>(callback: (data: T, message?: amqp.ConsumeMessage) => Promise<boolean>) {
-    if (!this.options.topics) {
-      throw new Error('You must specify an topic');
+    if (this.options.topics.length === 0) {
+      throw new Error('You must specify an least one topic');
     }
 
     let active = false;
@@ -172,7 +172,9 @@ export class Queue {
       arguments: this.arguments
     });
 
-    await Promise.all(this.options.topics.map(topic => ch.bindQueue(this.options.name, exchange, topic)));
+    for (const topic of this.options.topics) {
+      await ch.bindQueue(topic, exchange, topic);
+    }
 
     if (this.options.enableNack && this.options.retryTimeout) {
       await ch.bindQueue(this.options.name, exchange, this.options.retryTopic);
