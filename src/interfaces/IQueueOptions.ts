@@ -1,5 +1,5 @@
 export interface IQueueOptions {
-  topic: string;
+  topics: string[];
   name: string;
   durable: boolean;
   nackQueue: string;

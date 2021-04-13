@@ -29,11 +29,13 @@ connection.delayQueue('asasdd.asdasdasd').durable().from('ouvindo.xpto').to('dep
 
 (async () => {
   const publisher = connection.topic('listen.topic').persistent();
+  const anotherPublisher = connection.topic('another.topic').persistent();
 
   while (true) {
     const result = await publisher.send({ payload: 'message', priority: 1 });
-    console.log(result);
-    await sleep(1000);
+    const anotherResult = await anotherPublisher.send({ payload: 'another.message', priority: 1 });
+    console.log({ result, anotherResult });
+    await sleep(5000);
   }
 })();
 
