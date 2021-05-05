@@ -25,6 +25,8 @@ connection
     return true;
   });
 
+connection.queue('queue.without.consumer').topic('listen.topic').durable(true).create();
+
 connection.delayQueue('asasdd.asdasdasd').durable().from('ouvindo.xpto').to('depois.do.delay').timeout(5000).create();
 
 (async () => {
