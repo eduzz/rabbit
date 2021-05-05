@@ -82,6 +82,14 @@ export class Queue {
     return this;
   }
 
+  public async create() {
+    const ch = await this.connection.createChannel();
+    const exchange = this.connection.getExchange();
+
+    await this.configureNackQueue(exchange, ch);
+    await this.configureQueue(exchange, ch);
+  }
+
   public async listen<T>(callback: (data: T, message?: amqp.ConsumeMessage) => Promise<boolean>) {
     if (this.options.topics.length === 0) {
       throw new Error('You must specify an least one topic');
