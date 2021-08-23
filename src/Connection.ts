@@ -89,6 +89,12 @@ export class Connection {
   }
 
   public topic(topic: string) {
+    const existingPublisher = this.getPublishersByTopic(topic);
+
+    if (existingPublisher.length > 0) {
+      return existingPublisher[0];
+    }
+
     const publisher = new Publisher(this, topic);
     this.publishers.push(publisher);
     return publisher;
