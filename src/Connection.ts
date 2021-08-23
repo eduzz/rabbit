@@ -9,6 +9,7 @@ import { IMessage } from './interfaces/IMessage';
 import { Publisher } from './Publisher';
 import { Queue } from './Queue';
 import fs from 'fs';
+import { IPublishResult } from './interfaces/IPublishResult';
 
 type closeFn = () => void;
 
@@ -73,8 +74,8 @@ export class Connection {
     return this;
   }
 
-  public storeFallback(publisher: Publisher, message: IMessage<any>) {
-    this.fallbackAdapter.store(publisher.getTopic(), message);
+  public async storeFallback(publisher: Publisher, message: IMessage<any>): Promise<IPublishResult> {
+    await this.fallbackAdapter.store(publisher.getTopic(), message);
 
     return { status: true, destination: 'buffer', adapter: 'memory' };
   }
