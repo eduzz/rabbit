@@ -3,4 +3,5 @@ export interface IConnectionOptions {
   exchange: string;
   exchangeType: 'topic';
   connectionName: string;
+  numberOfConnectionAttempts?: number;
 }
