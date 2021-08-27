@@ -7,7 +7,7 @@ const connection = new Connection({
   exchange: 'test',
   exchangeType: 'topic',
   connectionName: 'test',
-  numberOfConnectionAttempts: 10,
+  maxConnectionAttempts: 10,
   processExitWhenUnableToConnectFirstTime: false,
 });
 

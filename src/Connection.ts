@@ -123,9 +123,9 @@ export class Connection {
 
     this.initialized = true;
     let connectionAttempts = 0;
-    let connectionAttemptsNow = 0;
+    let totalConnectionAttempts = 0;
 
-    const { dsn, numberOfConnectionAttempts, connectionName, processExitWhenUnableToConnectFirstTime } = this.options;
+    const { dsn, maxConnectionAttempts, connectionName, processExitWhenUnableToConnectFirstTime } = this.options;
 
     while (true) {
       try {
@@ -156,15 +156,15 @@ export class Connection {
         });
 
         connectionAttempts++;
-        console.log(`[rabbit] connected: connectionAttempts= ${connectionAttempts}, connectionAttemptsNow=${connectionAttemptsNow}`);
-        connectionAttemptsNow = 0;
+        console.log(`[rabbit] connected: connectionAttempts= ${connectionAttempts}, totalConnectionAttempts=${totalConnectionAttempts}`);
+        totalConnectionAttempts = 0;
         this.connected = true;
         this.connection = connection;
 
       } catch (err) {
         this.destroy();
-        connectionAttemptsNow++;
-        console.log(`[rabbit] trying to connect, connectionAttempts=${connectionAttempts}, connectionAttemptsNow=${connectionAttemptsNow}`);
+        totalConnectionAttempts++;
+        console.log(`[rabbit] trying to connect, connectionAttempts=${connectionAttempts}, totalConnectionAttempts=${totalConnectionAttempts}`);
 
         if (processExitWhenUnableToConnectFirstTime && connectionAttempts === 0) {
           console.log('[rabbit] failed to connect to rabbitmq', err);
@@ -172,8 +172,8 @@ export class Connection {
           process.exit(1);
         }
 
-        if (numberOfConnectionAttempts && connectionAttemptsNow > numberOfConnectionAttempts) {
-          console.log(`[rabbit] number of connection attempts exceeded: ${connectionAttemptsNow}`, err);
+        if (maxConnectionAttempts && totalConnectionAttempts > maxConnectionAttempts) {
+          console.log(`[rabbit] number of connection attempts exceeded: ${totalConnectionAttempts}`, err);
           throw err;
         }
       }
