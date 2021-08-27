@@ -8,6 +8,7 @@ const connection = new Connection({
   exchangeType: 'topic',
   connectionName: 'test',
   numberOfConnectionAttempts: 10,
+  processExitWhenUnableToConnectFirstTime: false,
 });
 
 connection.setFallbackAdapter(new Memory());

@@ -10,7 +10,8 @@
     "format": "prettier-eslint src/**/*.ts --write",
     "lint": "eslint --ext .ts src",
     "build": "tsc",
-    "prepare": "tsc"
+    "prepare": "tsc",
+    "test": "tsnd --inspect=0.0.0.0:9229 --respawn --no-notify --poll --no-deps --ignore-watch node_modules --transpile-only src/test.ts"
   },
   "devDependencies": {
     "@types/amqplib": "^0.8.2",

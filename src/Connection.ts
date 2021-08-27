@@ -25,7 +25,11 @@ export class Connection {
   private publishers: Publisher[] = [];
 
   constructor(options: IConnectionOptions) {
-    this.options = options;
+    const optionsDefaults = {
+      processExitWhenUnableToConnectFirstTime: true,
+    };
+
+    this.options = { ...optionsDefaults, ...options };
     this.setFallbackAdapter(new Memory());
   }
 
@@ -118,10 +122,10 @@ export class Connection {
     }
 
     this.initialized = true;
-
     let connectionAttempts = 0;
     let connectionAttemptsNow = 0;
-    const { dsn, numberOfConnectionAttempts, connectionName } = this.options;
+
+    const { dsn, numberOfConnectionAttempts, connectionName, processExitWhenUnableToConnectFirstTime } = this.options;
 
     while (true) {
       try {
@@ -152,18 +156,20 @@ export class Connection {
         });
 
         connectionAttempts++;
+        console.log(`[rabbit] connected: connectionAttempts= ${connectionAttempts}, connectionAttemptsNow=${connectionAttemptsNow}`);
         connectionAttemptsNow = 0;
         this.connected = true;
         this.connection = connection;
 
-        console.log('[rabbit] connected');
       } catch (err) {
         this.destroy();
         connectionAttemptsNow++;
+        console.log(`[rabbit] trying to connect, connectionAttempts=${connectionAttempts}, connectionAttemptsNow=${connectionAttemptsNow}`);
 
-        if (connectionAttempts === 0) {
+        if (processExitWhenUnableToConnectFirstTime && connectionAttempts === 0) {
           console.log('[rabbit] failed to connect to rabbitmq', err);
-          throw err;
+          console.log('[rabbit] finishing the process');
+          process.exit(1);
         }
 
         if (numberOfConnectionAttempts && connectionAttemptsNow > numberOfConnectionAttempts) {
