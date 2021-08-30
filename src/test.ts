@@ -6,7 +6,9 @@ const connection = new Connection({
   dsn: 'amqp://guest:guest@localhost:5672/',
   exchange: 'test',
   exchangeType: 'topic',
-  connectionName: 'test'
+  connectionName: 'test',
+  maxConnectionAttempts: 10,
+  processExitWhenUnableToConnectFirstTime: false,
 });
 
 connection.setFallbackAdapter(new Memory());

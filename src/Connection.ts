@@ -25,11 +25,15 @@ export class Connection {
   private publishers: Publisher[] = [];
 
   constructor(options: IConnectionOptions) {
-    this.options = options;
+    const optionsDefaults = {
+      processExitWhenUnableToConnectFirstTime: true,
+    };
+
+    this.options = { ...optionsDefaults, ...options };
     this.setFallbackAdapter(new Memory());
   }
 
-  public async createChannel(onClose: closeFn = () => {}): Promise<amqp.Channel> {
+  public async createChannel(onClose: closeFn = () => { }): Promise<amqp.Channel> {
     const connection = await this.getConnection();
 
     const channel = await connection.createChannel();
@@ -118,8 +122,10 @@ export class Connection {
     }
 
     this.initialized = true;
+    let failedConnectionAttempts = 0;
+    let connectionAttempts = 0;
 
-    let loops = 0;
+    const { dsn, maxConnectionAttempts, connectionName, processExitWhenUnableToConnectFirstTime } = this.options;
 
     while (true) {
       try {
@@ -128,13 +134,13 @@ export class Connection {
           continue;
         }
 
-        const separator = this.options.dsn.includes('?') ? '&' : '?';
+        const separator = dsn.includes('?') ? '&' : '?';
 
-        const connection = await amqp.connect(`${this.options.dsn}${separator}heartbeat=3`, {
+        const connection = await amqp.connect(`${dsn}${separator}heartbeat=3`, {
           clientProperties: {
             product: `@eduzz/rabbit\nv${version}\n☕`,
             // eslint-disable-next-line camelcase
-            connection_name: this.options.connectionName,
+            connection_name: connectionName,
             timeout: 2000
           }
         });
@@ -149,17 +155,26 @@ export class Connection {
           this.destroy();
         });
 
-        loops++;
-
+        failedConnectionAttempts++;
+        console.log(`[rabbit] connected: failedConnectionAttempts= ${failedConnectionAttempts}, connectionAttempts=${connectionAttempts}`);
+        connectionAttempts = 0;
         this.connected = true;
         this.connection = connection;
 
-        console.log('[rabbit] connected');
       } catch (err) {
         this.destroy();
-        if (loops === 0) {
+        connectionAttempts++;
+        console.log(`[rabbit] trying to connect, failedConnectionAttempts=${failedConnectionAttempts}, connectionAttempts=${connectionAttempts}`);
+
+        if (processExitWhenUnableToConnectFirstTime && failedConnectionAttempts === 0) {
           console.log('[rabbit] failed to connect to rabbitmq', err);
-          process.exit(0);
+          console.log('[rabbit] finishing the process');
+          process.exit(1);
+        }
+
+        if (maxConnectionAttempts && connectionAttempts > maxConnectionAttempts) {
+          console.log(`[rabbit] number of connection attempts exceeded: ${connectionAttempts}`, err);
+          throw err;
         }
       }
 
@@ -180,8 +195,8 @@ export class Connection {
     try {
       this.channels = [];
       connection.removeAllListeners('error');
-      connection.close().catch(() => {});
-    } catch {}
+      connection.close().catch(() => { });
+    } catch { }
   }
 
   private async getConnection(): Promise<amqp.Connection> {

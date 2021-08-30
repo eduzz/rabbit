@@ -3,4 +3,6 @@ export interface IConnectionOptions {
   exchange: string;
   exchangeType: 'topic';
   connectionName: string;
+  maxConnectionAttempts?: number;
+  processExitWhenUnableToConnectFirstTime?: boolean
 }
