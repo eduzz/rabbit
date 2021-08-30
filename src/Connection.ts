@@ -122,8 +122,8 @@ export class Connection {
     }
 
     this.initialized = true;
+    let failedConnectionAttempts = 0;
     let connectionAttempts = 0;
-    let totalConnectionAttempts = 0;
 
     const { dsn, maxConnectionAttempts, connectionName, processExitWhenUnableToConnectFirstTime } = this.options;
 
@@ -155,25 +155,25 @@ export class Connection {
           this.destroy();
         });
 
-        connectionAttempts++;
-        console.log(`[rabbit] connected: connectionAttempts= ${connectionAttempts}, totalConnectionAttempts=${totalConnectionAttempts}`);
-        totalConnectionAttempts = 0;
+        failedConnectionAttempts++;
+        console.log(`[rabbit] connected: failedConnectionAttempts= ${failedConnectionAttempts}, connectionAttempts=${connectionAttempts}`);
+        connectionAttempts = 0;
         this.connected = true;
         this.connection = connection;
 
       } catch (err) {
         this.destroy();
-        totalConnectionAttempts++;
-        console.log(`[rabbit] trying to connect, connectionAttempts=${connectionAttempts}, totalConnectionAttempts=${totalConnectionAttempts}`);
+        connectionAttempts++;
+        console.log(`[rabbit] trying to connect, failedConnectionAttempts=${failedConnectionAttempts}, connectionAttempts=${connectionAttempts}`);
 
-        if (processExitWhenUnableToConnectFirstTime && connectionAttempts === 0) {
+        if (processExitWhenUnableToConnectFirstTime && failedConnectionAttempts === 0) {
           console.log('[rabbit] failed to connect to rabbitmq', err);
           console.log('[rabbit] finishing the process');
           process.exit(1);
         }
 
-        if (maxConnectionAttempts && totalConnectionAttempts > maxConnectionAttempts) {
-          console.log(`[rabbit] number of connection attempts exceeded: ${totalConnectionAttempts}`, err);
+        if (maxConnectionAttempts && connectionAttempts > maxConnectionAttempts) {
+          console.log(`[rabbit] number of connection attempts exceeded: ${connectionAttempts}`, err);
           throw err;
         }
       }
