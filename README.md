@@ -20,9 +20,11 @@ Send an message to an topic:
 ```ts
 import { myRabbit } from './myRabbit';
 
-myRabbit.topic('some.topic').persistent().send({
+const payload = {
   hello: 'world'
-});
+};
+
+myRabbit.topic('some.topic').persistent().send({ payload });
 ```
 
 Listen to one or multiple topics:
