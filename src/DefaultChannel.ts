@@ -2,18 +2,18 @@ import * as amqp from 'amqplib';
 import { Connection } from './Connection';
 
 export abstract class DefaultChannel {
-  private static channel: Promise<amqp.Channel>;
+  private channel: Promise<amqp.Channel>|null = null;
   protected connection!: Connection;
 
   protected getChannel() {
-    if (DefaultChannel.channel) {
-      return DefaultChannel.channel;
+    if (this.channel) {
+      return this.channel;
     }
 
-    DefaultChannel.channel = this.connection.createChannel(() => {
-      (DefaultChannel.channel as any) = null;
+    this.channel = this.connection.createChannel(() => {
+      (this.channel as any) = null;
     });
 
-    return DefaultChannel.channel;
+    return this.channel;
   }
 }
