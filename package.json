@@ -2,7 +2,7 @@
   "name": "@eduzz/rabbit",
   "private": false,
   "description": "An simplified amqp client with reconnections and fallback",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "license": "MIT",
