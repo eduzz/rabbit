@@ -3,6 +3,7 @@ export interface IQueueOptions {
   name: string;
   durable: boolean;
   nackQueue: string;
+  DQLQueue: string;
   retryTopic: string;
   nackTopic: string;
   enableNack: boolean;
@@ -10,4 +11,5 @@ export interface IQueueOptions {
   autoDelete: boolean;
   exclusive: boolean;
   prefetch: number;
+  deadleaterAfter: number;
 }
