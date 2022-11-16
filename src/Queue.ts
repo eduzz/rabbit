@@ -208,12 +208,10 @@ export class Queue {
       throw new Error("you cannot use DQL with ephemeral queues")
     }
 
-    let args = {};
-
     await ch.assertQueue(this.options.DQLQueue, {
       durable: true,
       autoDelete: false,
-      arguments: args
+      arguments: {}
     });
   }
 
