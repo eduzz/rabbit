@@ -3,7 +3,7 @@ import { sleep } from './fn';
 import { Memory } from './Fallback/Adapter/Memory';
 
 const connection = new Connection({
-  dsn: 'amqp://guest:guest@localhost:5672/',
+  dsn: 'amqps://mcatyrps:Gb9K8cuKGV4PXw4rNJqkNSJIlT3sEe7E@woodpecker.rmq.cloudamqp.com/mcatyrps',
   exchange: 'test',
   exchangeType: 'topic',
   connectionName: 'test',
@@ -14,31 +14,23 @@ const connection = new Connection({
 connection.setFallbackAdapter(new Memory());
 
 connection
-  .queue('listener.fallback')
-  .topic('listen.topic')
+  .queue('events')
+  .topic('event.sent')
   .durable(true)
-  .prefetch(10)
-  .retryTimeout(60000)
+  .prefetch(1)
+  .retryTimeout(20000)
+  .deadLeaterAfter(5)
   .listen(async message => {
     console.log('received:', message);
-
-    await sleep(4000);
-
-    return true;
+    return false;
   });
 
-connection.queue('queue.without.consumer').topic('listen.topic').durable(true).create();
-
-connection.delayQueue('asasdd.asdasdasd').durable().from('ouvindo.xpto').to('depois.do.delay').timeout(5000).create();
-
 (async () => {
-  const publisher = connection.topic('listen.topic').persistent();
-  const anotherPublisher = connection.topic('another.topic').persistent();
+  const publisher = connection.topic('event.sent').persistent();
 
   while (true) {
-    const result = await publisher.send({ payload: 'message', priority: 1 });
-    const anotherResult = await anotherPublisher.send({ payload: 'another.message', priority: 1 });
-    console.log({ result, anotherResult });
+    console.log('sending message');
+    await publisher.send({ payload: 'message' });
     await sleep(5000);
   }
 })();
