@@ -19,7 +19,7 @@ connection
   .durable(true)
   .prefetch(1)
   .retryTimeout(20000)
-  .deadLeaterAfter(5)
+  .deadLetterAfter(5)
   .listen(async message => {
     console.log('received:', message);
     return false;
