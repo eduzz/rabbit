@@ -11,5 +11,5 @@ export interface IQueueOptions {
   autoDelete: boolean;
   exclusive: boolean;
   prefetch: number;
-  deadLeaterAfter: number;
+  deadLetterAfter: number;
 }

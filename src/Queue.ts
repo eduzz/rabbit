@@ -24,7 +24,7 @@ export class Queue {
       autoDelete: false,
       exclusive: false,
       prefetch: 1,
-      deadLeaterAfter: -1
+      deadLetterAfter: -1
     };
   }
 
@@ -38,13 +38,13 @@ export class Queue {
     return this;
   }
 
-  public deadLeaterAfter(numberOfNacks: number) {
+  public deadLetterAfter(numberOfNacks: number) {
 
     if (numberOfNacks <= 0) {
       throw new Error("the number of nacks to the DLQ must be positive or zero")
     }
 
-    this.options.deadLeaterAfter = numberOfNacks;
+    this.options.deadLetterAfter = numberOfNacks;
 
     return this;
   }
@@ -166,7 +166,7 @@ export class Queue {
 
     const failedAttempts = msg.properties.headers['x-death'][0].count
 
-    if (failedAttempts >= this.options.deadLeaterAfter) {
+    if (failedAttempts >= this.options.deadLetterAfter) {
       channel.sendToQueue(this.options.DQLQueue, msg.content);
       channel.ack(msg);
       return
@@ -200,7 +200,7 @@ export class Queue {
   }
 
   private async configureDLQQueue(ch: amqp.Channel) {
-    if (this.options.deadLeaterAfter === -1) {
+    if (this.options.deadLetterAfter === -1) {
       return;
     }
 
