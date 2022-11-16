@@ -129,6 +129,8 @@ export class Connection {
 
     while (true) {
       try {
+        connectionAttempts++;
+
         if (this.connected) {
           await sleep(1000);
           continue;
@@ -155,7 +157,6 @@ export class Connection {
           this.destroy();
         });
 
-        failedConnectionAttempts++;
         console.log(`[rabbit] connected: failedConnectionAttempts= ${failedConnectionAttempts}, connectionAttempts=${connectionAttempts}`);
         connectionAttempts = 0;
         this.connected = true;
@@ -163,7 +164,7 @@ export class Connection {
 
       } catch (err) {
         this.destroy();
-        connectionAttempts++;
+        failedConnectionAttempts++;
         console.log(`[rabbit] trying to connect, failedConnectionAttempts=${failedConnectionAttempts}, connectionAttempts=${connectionAttempts}`);
 
         if (processExitWhenUnableToConnectFirstTime && failedConnectionAttempts === 0) {

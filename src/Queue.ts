@@ -18,11 +18,13 @@ export class Queue {
       enableNack: true,
       retryTimeout: 0,
       nackQueue: `${name}.nack`,
+      DQLQueue: `${name}.dlq`,
       retryTopic: `${name}.retry`,
       nackTopic: `${name}.nack`,
       autoDelete: false,
       exclusive: false,
-      prefetch: 1
+      prefetch: 1,
+      deadleaterAfter: -1
     };
   }
 
@@ -33,6 +35,17 @@ export class Queue {
 
   public durable(durable: boolean = true) {
     this.options.durable = durable;
+    return this;
+  }
+
+  public deadleaterAfter(numberOfNacks: number) {
+
+    if (numberOfNacks <= 0) {
+      throw new Error("the number of nacks to the DLQ must be positive or zero")
+    }
+
+    this.options.deadleaterAfter = numberOfNacks;
+
     return this;
   }
 
@@ -87,6 +100,7 @@ export class Queue {
     const exchange = this.connection.getExchange();
 
     await this.configureNackQueue(exchange, ch);
+    await this.configureDLQQueue(ch);
     await this.configureQueue(exchange, ch);
   }
 
@@ -104,15 +118,16 @@ export class Queue {
           continue;
         }
 
-        const ch = await this.connection.createChannel(() => {
+        const channel = await this.connection.createChannel(() => {
           active = false;
         });
         const exchange = this.connection.getExchange();
 
-        await this.configureNackQueue(exchange, ch);
-        await this.configureQueue(exchange, ch);
+        await this.configureDLQQueue(channel);
+        await this.configureNackQueue(exchange, channel);
+        await this.configureQueue(exchange, channel);
 
-        await ch.prefetch(this.options.prefetch);
+        await channel.prefetch(this.options.prefetch);
 
         const consumeFn = async (msg: amqp.ConsumeMessage | null) => {
           if (!msg) {
@@ -123,24 +138,41 @@ export class Queue {
             const payload = JSON.parse(msg.content.toString()) as T;
             const result = await callback(payload, msg);
             if (!result) {
-              ch.nack(msg, false, false);
+              await this.handleFailedMessage(channel, msg);
               return;
             }
-            ch.ack(msg);
+            channel.ack(msg);
           } catch (err) {
             try {
-              ch.nack(msg, false, false);
-            } catch {}
+              await this.handleFailedMessage(channel, msg);
+            } catch { }
           }
         };
 
         active = true;
 
-        await ch.consume(this.options.name, consumeFn, { noAck: false });
+        await channel.consume(this.options.name, consumeFn, { noAck: false });
       } catch (err) {
         console.log('[rabbit] connection failed');
       }
     }
+  }
+
+  private async handleFailedMessage(channel: amqp.Channel, msg: amqp.ConsumeMessage) {
+    if (!msg.properties?.headers['x-death']) {
+      channel.nack(msg, false, false);
+      return;
+    }
+
+    const failedAttempts = msg.properties.headers['x-death'][0].count
+
+    if (failedAttempts >= this.options.deadleaterAfter) {
+      channel.sendToQueue(this.options.DQLQueue, msg.content);
+      channel.ack(msg);
+      return
+    }
+
+    channel.nack(msg, false, false);
   }
 
   private async configureNackQueue(exchange: string, ch: amqp.Channel) {
@@ -165,6 +197,22 @@ export class Queue {
     });
 
     await ch.bindQueue(this.options.nackQueue, exchange, this.options.nackTopic);
+  }
+
+  private async configureDLQQueue(ch: amqp.Channel) {
+    if (this.options.deadleaterAfter === -1) {
+      return;
+    }
+
+    if (this.options.autoDelete) {
+      throw new Error("you cannot use DQL with ephemeral queues")
+    }
+
+    await ch.assertQueue(this.options.DQLQueue, {
+      durable: true,
+      autoDelete: false,
+      arguments: {}
+    });
   }
 
   private async configureQueue(exchange: string, ch: amqp.Channel) {
