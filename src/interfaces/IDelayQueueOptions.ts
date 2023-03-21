@@ -3,6 +3,5 @@ export interface IDelayQueueOptions {
   fromTopic: string;
   toTopic: string;
   durable: boolean;
-  timeout?: number;
-  noTimeout?: boolean;
+  timeout: number | undefined;
 }

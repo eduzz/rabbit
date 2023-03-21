@@ -14,16 +14,8 @@ export class DelayQueue extends DefaultChannel {
       fromTopic: '',
       toTopic: '',
       durable: true,
-      timeout: 0,
-      noTimeout: false
+      timeout: 0
     };
-  }
-
-  public noTimeout() {
-    delete this.options.timeout;
-    this.options.noTimeout = true;
-
-    return this;
   }
 
   public durable(durable: boolean = true) {
@@ -55,7 +47,11 @@ export class DelayQueue extends DefaultChannel {
       throw new Error('You must specify an destination topic');
     }
 
-    if (!this.options.noTimeout && this.options?.timeout !== undefined && this.options.timeout <= 0) {
+    if (this.options.timeout === -1) {
+      this.options.timeout = undefined;
+    }
+
+    if (this.options.timeout !== undefined && this.options.timeout <= 0) {
       throw new Error('You must specify a positive timeout');
     }
 
@@ -67,7 +63,7 @@ export class DelayQueue extends DefaultChannel {
       'x-dead-letter-routing-key': this.options.toTopic
     };
 
-    if (this.options.timeout && this.options.timeout > 0) {
+    if (this.options.timeout !== undefined && this.options.timeout > 0) {
       args['x-message-ttl'] = this.options.timeout;
     }
 
