@@ -47,6 +47,10 @@ export class Publisher extends DefaultChannel {
       persistent: this.options.deliveryMode === DeliveryMode.Peristent
     };
 
+    if (data.expiration) {
+      options.expiration = data.expiration;
+    }
+
     try {
       const result = channel.publish(this.connection.getExchange(), this.topic, msg, {
         ...options,
@@ -56,7 +60,7 @@ export class Publisher extends DefaultChannel {
       if (result) {
         return { status: true, destination: 'rabbit' };
       }
-    } catch (err) {}
+    } catch (err) { }
 
     return this.connection.storeFallback(this, data);
   }

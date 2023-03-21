@@ -14,8 +14,16 @@ export class DelayQueue extends DefaultChannel {
       fromTopic: '',
       toTopic: '',
       durable: true,
-      timeout: 0
+      timeout: 0,
+      noTimeout: false
     };
+  }
+
+  public noTimeout() {
+    delete this.options.timeout;
+    this.options.noTimeout = true;
+
+    return this;
   }
 
   public durable(durable: boolean = true) {
@@ -47,18 +55,21 @@ export class DelayQueue extends DefaultChannel {
       throw new Error('You must specify an destination topic');
     }
 
-    if (this.options.timeout <= 0) {
+    if (!this.options.noTimeout && this.options?.timeout !== undefined && this.options.timeout <= 0) {
       throw new Error('You must specify a positive timeout');
     }
 
     const ch = await this.getChannel();
     const exchange = this.connection.getExchange();
 
-    const args = {
+    const args: Record<string, any> = {
       'x-dead-letter-exchange': exchange,
-      'x-dead-letter-routing-key': this.options.toTopic,
-      'x-message-ttl': this.options.timeout
+      'x-dead-letter-routing-key': this.options.toTopic
     };
+
+    if (this.options.timeout && this.options.timeout > 0) {
+      args['x-message-ttl'] = this.options.timeout;
+    }
 
     await ch.assertQueue(this.options.name, {
       durable: this.options.durable,
