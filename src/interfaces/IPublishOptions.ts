@@ -4,7 +4,7 @@ export enum DeliveryMode {
 }
 
 export interface IPublishOptions {
-  expiration?: string | number;
+  expiration?: number;
   persistent?: boolean;
   deliveryMode?: DeliveryMode;
   headers?: any;

@@ -47,18 +47,25 @@ export class DelayQueue extends DefaultChannel {
       throw new Error('You must specify an destination topic');
     }
 
-    if (this.options.timeout <= 0) {
+    if (this.options.timeout === -1) {
+      this.options.timeout = undefined;
+    }
+
+    if (this.options.timeout !== undefined && this.options.timeout <= 0) {
       throw new Error('You must specify a positive timeout');
     }
 
     const ch = await this.getChannel();
     const exchange = this.connection.getExchange();
 
-    const args = {
+    const args: Record<string, any> = {
       'x-dead-letter-exchange': exchange,
-      'x-dead-letter-routing-key': this.options.toTopic,
-      'x-message-ttl': this.options.timeout
+      'x-dead-letter-routing-key': this.options.toTopic
     };
+
+    if (this.options.timeout !== undefined && this.options.timeout > 0) {
+      args['x-message-ttl'] = this.options.timeout;
+    }
 
     await ch.assertQueue(this.options.name, {
       durable: this.options.durable,
