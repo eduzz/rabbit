@@ -1,38 +1,43 @@
 import { Connection } from './Connection';
 import { sleep } from './fn';
-import { Memory } from './Fallback/Adapter/Memory';
-
-const connection = new Connection({
-  dsn: 'amqps://mcatyrps:Gb9K8cuKGV4PXw4rNJqkNSJIlT3sEe7E@woodpecker.rmq.cloudamqp.com/mcatyrps',
-  exchange: 'test',
-  exchangeType: 'topic',
-  connectionName: 'test',
-  maxConnectionAttempts: 10,
-  processExitWhenUnableToConnectFirstTime: false,
-});
-
-connection.setFallbackAdapter(new Memory());
-
-connection
-  .queue('events')
-  .topic('event.sent')
-  .durable(true)
-  .prefetch(1)
-  .retryTimeout(20000)
-  .deadLetterAfter(5)
-  .listen(async message => {
-    console.log('received:', message);
-    return false;
-  });
 
 (async () => {
-  const publisher = connection.topic('event.sent').persistent();
+  const connection = new Connection({
+    dsn: 'amqps://doehrbmi:dLn2qBCetLjonvYMgnkBOFhizIp57c84@moose.rmq.cloudamqp.com/doehrbmi',
+    exchange: 'xpto',
+    connectionName: 'yay',
+    logLevel: 'debug',
+  });
 
-  while (true) {
-    console.log('sending message');
-    await publisher.send({ payload: 'message' });
-    await sleep(5000);
+  await connection.connect();
+
+  try {
+    await connection
+      .queue('blabla')
+      .topic('xpto')
+      .durable()
+      .prefetch(100)
+      .retryTimeout(10000)
+      .deadLetterAfter(10)
+      .listen(async (payload) => {
+        console.log('RECEIVED', payload);
+        await sleep(1000);
+
+        return true;
+      });
+
+    await connection.delayQueue('myNiceDelayQueue').timeout(30000).from('xpto.from').to('xpto').create();
+
+    const publisher = connection.topic('xpto').persistent();
+
+    let id = 0;
+
+    setInterval(async () => {
+      await publisher.send({
+        payload: { x: ++id },
+      });
+    }, 1000);
+  } catch (err) {
+    console.log(err);
   }
 })();
-
-console.log('started');

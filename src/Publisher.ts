@@ -1,67 +1,83 @@
 import { Connection } from './Connection';
-import { DefaultChannel } from './DefaultChannel';
-import { IPublishOptions, DeliveryMode } from './interfaces/IPublishOptions';
-import { IMessage } from './interfaces/IMessage';
-import { IPublishResult } from './interfaces/IPublishResult';
-import { NoExtraProperties } from './types';
+import { sleep } from './fn';
+import { logger } from './Logger';
 
-export class Publisher extends DefaultChannel {
-  private topic: string;
+interface ISendMessage<T = unknown> {
+  payload: T;
+  expiration?: number;
+  priority?: number;
+}
 
-  private options: IPublishOptions = {
-    deliveryMode: DeliveryMode.Peristent
+interface IFullOptions<T = unknown> extends ISendMessage<T> {
+  persistent: boolean;
+}
+
+export class Publisher {
+  private options = {
+    topic: '',
+    persistent: false,
+    maxAttempts: 100,
   };
 
-  constructor(connection: Connection, topic: string) {
-    super();
-    this.connection = connection;
-    this.topic = topic;
+  constructor(private readonly connection: Connection, topic: string) {
+    this.options.topic = topic;
   }
 
-  public persistent(persist: boolean = true) {
-    this.options.deliveryMode = persist ? DeliveryMode.Peristent : DeliveryMode.NonPersistent;
+  public persistent(isPersistent = true) {
+    this.options.persistent = isPersistent;
     return this;
   }
 
-  public getConnection() {
-    return this.connection;
+  public maxRetryAttempts(max: number) {
+    this.options.maxAttempts = max;
+    return this;
   }
 
-  public getTopic() {
-    return this.topic;
-  }
-
-  public async send<T = any>(data: NoExtraProperties<IMessage<T>>): Promise<IPublishResult> {
-    this.connection.initialize();
-
-    if (!this.connection.isConnected()) {
-      return this.connection.storeFallback(this, data);
-    }
-
-    const channel = await this.getChannel();
-
-    const msg = Buffer.from(JSON.stringify(data.payload));
-
-    const options = {
-      ...this.options,
-      persistent: this.options.deliveryMode === DeliveryMode.Peristent
+  public async send(data: ISendMessage): Promise<void> {
+    const options: IFullOptions = {
+      ...data,
+      persistent: this.options.persistent,
     };
 
     if (data.expiration) {
       options.expiration = data.expiration;
     }
 
-    try {
-      const result = channel.publish(this.connection.getExchange(), this.topic, msg, {
-        ...options,
-        priority: data.priority
-      });
+    let result = false;
+    let attempts = 0;
 
-      if (result) {
-        return { status: true, destination: 'rabbit' };
+    do {
+      attempts++;
+
+      if (attempts > this.options.maxAttempts) {
+        throw new Error(`Failed to send message to queue after ${attempts} attempts.`);
       }
-    } catch (err) { }
 
-    return this.connection.storeFallback(this, data);
+      try {
+        if (this.connection.isBlocked()) {
+          await sleep(100);
+          continue;
+        }
+
+        const channel = await this.connection.loadChannel({
+          name: '__topic__',
+        });
+
+        const msg = Buffer.from(JSON.stringify(data.payload));
+
+        result = channel.publish(this.connection.getExchange(), this.options.topic, msg, {
+          ...options,
+          priority: data.priority,
+        });
+
+        logger.debug({
+          message: 'SENT',
+          success: result,
+          data,
+        });
+      } catch (err) {
+        // just to be
+      }
+    } while (!result);
   }
 }

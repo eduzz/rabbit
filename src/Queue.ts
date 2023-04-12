@@ -1,51 +1,136 @@
+import amqp from 'amqplib';
+
 import { Connection } from './Connection';
-import { IQueueOptions } from './interfaces/IQueueOptions';
-import * as amqp from 'amqplib';
-import { sleep } from './fn';
+import { logger } from './Logger';
 
 export class Queue {
-  private connection: Connection;
-  private options: IQueueOptions;
-  private arguments: { [key: string]: any } = {};
+  private topics: string[] = [];
 
-  constructor(connection: Connection, name: string) {
-    this.connection = connection;
+  private options = {
+    durable: false,
+    retryTimeout: -1,
+    deadLetterAfter: -1,
+    enableNack: true,
+    ephemeral: false,
+    exclusive: false,
+    prefetch: 1,
+    maxPriority: -1,
+    names: {
+      queueName: '',
+      nackQueue: '',
+      retryTopic: '',
+      nackTopic: '',
+      dlqQueue: '',
+    },
+  };
 
-    this.options = {
-      name,
-      topics: [],
-      durable: true,
-      enableNack: true,
-      retryTimeout: 0,
-      nackQueue: `${name}.nack`,
-      DQLQueue: `${name}.dlq`,
-      retryTopic: `${name}.retry`,
-      nackTopic: `${name}.nack`,
-      autoDelete: false,
-      exclusive: false,
-      prefetch: 1,
-      deadLetterAfter: -1
-    };
+  constructor(private readonly connection: Connection, private readonly baseQueueName: string) {
+    // empty
   }
 
-  public topic(...topics: string[]) {
-    this.options.topics.push(...topics);
+  public async listen<T = unknown>(callback: (data: T, message?: amqp.ConsumeMessage) => Promise<boolean>) {
+    if (this.options.retryTimeout > 0 && this.options.deadLetterAfter <= 0) {
+      throw new Error('If you use retryTimeout, you need to specify a deadLetterAfter');
+    }
+
+    if (this.topics.length === 0) {
+      throw new Error('You must specify an least one topic');
+    }
+
+    let channel: amqp.Channel;
+
+    const configureChannel = async (newChannel: amqp.Channel) => {
+      channel = newChannel;
+
+      this.genrateQueueNames();
+
+      await this.configureNackQueue(this.connection.getExchange(), channel);
+      await this.configureQueue(this.connection.getExchange(), channel);
+      await this.configureDLQQueue(channel);
+
+      await channel.prefetch(this.options.prefetch);
+
+      const consumeFn = async (msg: amqp.ConsumeMessage | null) => {
+        if (!msg) {
+          return;
+        }
+
+        try {
+          const payload = JSON.parse(msg.content.toString()) as T;
+
+          logger.debug({
+            message: 'RECEIVED',
+            queue: this.baseQueueName,
+            data: payload,
+          });
+
+          const result = await callback(payload, msg);
+
+          if (!result) {
+            await this.handleFailedMessage(channel, msg);
+            return;
+          }
+
+          channel.ack(msg);
+        } catch (err) {
+          try {
+            await this.handleFailedMessage(channel, msg);
+          } catch {
+            logger.error({
+              message: 'Failed to handle failed message',
+            });
+          }
+        }
+      };
+
+      logger.debug(`Listening to queue ${this.baseQueueName}...`);
+
+      await channel.consume(this.options.names.queueName, consumeFn, { noAck: false });
+    };
+
+    this.connection.on('connected', async () => {
+      const oldChannel = channel;
+      const newChannel = await this.getChannel();
+
+      if (newChannel === channel) {
+        return;
+      }
+
+      logger.debug(`New channel found for queue ${this.baseQueueName}`);
+      await configureChannel(newChannel);
+
+      try {
+        oldChannel?.close();
+      } catch (err) {
+        // nothing;
+      }
+    });
+
+    configureChannel(await this.getChannel());
+  }
+
+  public topic(topic: string) {
+    this.topics = [...new Set([...this.topics, topic])];
     return this;
   }
 
-  public durable(durable: boolean = true) {
+  public durable(durable = true) {
     this.options.durable = durable;
     return this;
   }
 
-  public deadLetterAfter(numberOfNacks: number) {
-
-    if (numberOfNacks <= 0) {
-      throw new Error("the number of nacks to the DLQ must be positive or zero")
+  public retryTimeout(timeout: number) {
+    if (timeout < 1) {
+      throw new Error('Invalid timeout');
     }
 
-    this.options.deadLetterAfter = numberOfNacks;
+    this.options.retryTimeout = timeout;
 
+    return this;
+  }
+
+  public deadLetterAfter(numberOfFailures: number) {
+    this.options.deadLetterAfter = numberOfFailures;
     return this;
   }
 
@@ -54,25 +139,8 @@ export class Queue {
     return this;
   }
 
-  public retryTimeout(timeout: number) {
-    if (timeout < 0) {
-      throw new Error('Invalid timeout');
-    }
-
-    this.options.retryTimeout = timeout;
-    return this;
-  }
-
   public ephemeral() {
-    this.options.autoDelete = true;
-
-    const id = Math.ceil(Math.random() * Number.MAX_SAFE_INTEGER);
-
-    this.options.name = `${this.options.name}.${id}`;
-    this.options.nackQueue = `${this.options.name}.nack`;
-    this.options.retryTopic = `${this.options.name}.retry`;
-    this.options.nackTopic = `${this.options.name}.nack`;
-
+    this.options.ephemeral = true;
     return this;
   }
 
@@ -91,70 +159,102 @@ export class Queue {
   }
 
   public priority(max: number) {
-    this.arguments['x-max-priority'] = max;
+    if (max <= 1 || max > 255) {
+      throw new Error('invalid priority (must be between 1 and 255)');
+    }
+
+    this.options.maxPriority = max;
     return this;
   }
 
-  public async create() {
-    const ch = await this.connection.createChannel();
-    const exchange = this.connection.getExchange();
-
-    await this.configureNackQueue(exchange, ch);
-    await this.configureDLQQueue(ch);
-    await this.configureQueue(exchange, ch);
+  private getChannel() {
+    return this.connection.loadChannel({
+      name: `__receiver__pref: ${this.options.prefetch}: ${this.baseQueueName}`,
+    });
   }
 
-  public async listen<T>(callback: (data: T, message?: amqp.ConsumeMessage) => Promise<boolean>) {
-    if (this.options.topics.length === 0) {
-      throw new Error('You must specify an least one topic');
+  private genrateQueueNames() {
+    const id = Math.ceil(Math.random() * Number.MAX_SAFE_INTEGER);
+
+    const suffix = this.options.ephemeral ? `.ephemeral.${id}` : '';
+
+    const name = `${this.baseQueueName}${suffix}`;
+    const queueName = name;
+    const nackQueue = name + '.nack';
+    const retryTopic = name + '.retry';
+    const nackTopic = name + '.nack';
+    const dlqQueue = name + '.dlq';
+
+    this.options.names = {
+      queueName,
+      nackQueue,
+      retryTopic,
+      nackTopic,
+      dlqQueue,
+    };
+  }
+
+  private async configureDLQQueue(ch: amqp.Channel) {
+    if (this.options.deadLetterAfter < 1) {
+      return;
     }
 
-    let active = false;
+    if (this.options.ephemeral) {
+      throw new Error('you cannot use DQL with ephemeral queues');
+    }
 
-    while (true) {
-      try {
-        if (active) {
-          await sleep(1000);
-          continue;
-        }
+    await ch.assertQueue(this.options.names.dlqQueue, {
+      durable: true,
+      autoDelete: false,
+      arguments: {},
+    });
+  }
 
-        const channel = await this.connection.createChannel(() => {
-          active = false;
-        });
-        const exchange = this.connection.getExchange();
+  private async configureNackQueue(exchange: string, ch: amqp.Channel) {
+    if (!this.options.enableNack) {
+      return;
+    }
 
-        await this.configureDLQQueue(channel);
-        await this.configureNackQueue(exchange, channel);
-        await this.configureQueue(exchange, channel);
+    let args: Record<string, any> = {};
 
-        await channel.prefetch(this.options.prefetch);
+    if (this.options.retryTimeout) {
+      args = {
+        'x-dead-letter-exchange': exchange,
+        'x-dead-letter-routing-key': this.options.names.retryTopic,
+        'x-message-ttl': this.options.retryTimeout,
+      };
+    }
 
-        const consumeFn = async (msg: amqp.ConsumeMessage | null) => {
-          if (!msg) {
-            return;
-          }
+    await ch.assertQueue(this.options.names.nackQueue, {
+      durable: this.options.durable,
+      autoDelete: this.options.ephemeral || false,
+      arguments: args,
+    });
 
-          try {
-            const payload = JSON.parse(msg.content.toString()) as T;
-            const result = await callback(payload, msg);
-            if (!result) {
-              await this.handleFailedMessage(channel, msg);
-              return;
-            }
-            channel.ack(msg);
-          } catch (err) {
-            try {
-              await this.handleFailedMessage(channel, msg);
-            } catch { }
-          }
-        };
+    await ch.bindQueue(this.options.names.nackQueue, exchange, this.options.names.nackTopic);
+  }
 
-        active = true;
+  private async configureQueue(exchange: string, ch: amqp.Channel) {
+    const args: Record<string, any> = {};
 
-        await channel.consume(this.options.name, consumeFn, { noAck: false });
-      } catch (err) {
-        console.log('[rabbit] connection failed');
-      }
+    if (this.options.enableNack) {
+      args['x-dead-letter-exchange'] = exchange;
+      args['x-dead-letter-routing-key'] = this.options.names.nackTopic;
+    }
+
+    await ch.assertQueue(this.options.names.queueName, {
+      durable: this.options.durable,
+      autoDelete: this.options.ephemeral || false,
+      exclusive: this.options.exclusive || false,
+      arguments: args,
+    });
+
+    for (const topic of this.topics) {
+      await ch.bindQueue(this.options.names.queueName, exchange, topic);
+    }
+
+    if (this.options.enableNack && this.options.retryTimeout) {
+      await ch.bindQueue(this.options.names.queueName, exchange, this.options.names.retryTopic);
     }
   }
 
@@ -164,76 +264,14 @@ export class Queue {
       return;
     }
 
-    const failedAttempts = msg.properties.headers['x-death'][0].count
+    const failedAttempts = msg.properties.headers['x-death'][0].count;
 
     if (failedAttempts >= this.options.deadLetterAfter) {
-      channel.sendToQueue(this.options.DQLQueue, msg.content);
+      channel.sendToQueue(this.options.names.dlqQueue, msg.content);
       channel.ack(msg);
-      return
+      return;
     }
 
     channel.nack(msg, false, false);
-  }
-
-  private async configureNackQueue(exchange: string, ch: amqp.Channel) {
-    if (!this.options.enableNack) {
-      return;
-    }
-
-    let args = {};
-
-    if (this.options.retryTimeout) {
-      args = {
-        'x-dead-letter-exchange': exchange,
-        'x-dead-letter-routing-key': this.options.retryTopic,
-        'x-message-ttl': this.options.retryTimeout
-      };
-    }
-
-    await ch.assertQueue(this.options.nackQueue, {
-      durable: this.options.durable,
-      autoDelete: this.options.autoDelete || false,
-      arguments: args
-    });
-
-    await ch.bindQueue(this.options.nackQueue, exchange, this.options.nackTopic);
-  }
-
-  private async configureDLQQueue(ch: amqp.Channel) {
-    if (this.options.deadLetterAfter === -1) {
-      return;
-    }
-
-    if (this.options.autoDelete) {
-      throw new Error("you cannot use DQL with ephemeral queues")
-    }
-
-    await ch.assertQueue(this.options.DQLQueue, {
-      durable: true,
-      autoDelete: false,
-      arguments: {}
-    });
-  }
-
-  private async configureQueue(exchange: string, ch: amqp.Channel) {
-    if (this.options.enableNack) {
-      this.arguments['x-dead-letter-exchange'] = exchange;
-      this.arguments['x-dead-letter-routing-key'] = this.options.nackTopic;
-    }
-
-    await ch.assertQueue(this.options.name, {
-      durable: this.options.durable,
-      autoDelete: this.options.autoDelete || false,
-      exclusive: this.options.exclusive || false,
-      arguments: this.arguments
-    });
-
-    for (const topic of this.options.topics) {
-      await ch.bindQueue(this.options.name, exchange, topic);
-    }
-
-    if (this.options.enableNack && this.options.retryTimeout) {
-      await ch.bindQueue(this.options.name, exchange, this.options.retryTopic);
-    }
   }
 }

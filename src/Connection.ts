@@ -1,107 +1,101 @@
-import * as amqp from 'amqplib';
+import fs from 'fs';
+import { EventEmitter } from 'stream';
+
+import amqplib from 'amqplib';
 
 import { DelayQueue } from './DelayQueue';
-import { Memory } from './Fallback/Adapter/Memory';
 import { sleep } from './fn';
-import { IConnectionOptions } from './interfaces/IConnectionOptions';
-import { IFallbackAdapter } from './interfaces/IFallbackAdapter';
-import { IMessage } from './interfaces/IMessage';
+import { ILogger, LogLevel, logger } from './Logger';
 import { Publisher } from './Publisher';
 import { Queue } from './Queue';
-import fs from 'fs';
-import { IPublishResult } from './interfaces/IPublishResult';
 
-type closeFn = () => void;
+interface IConnectionOptions {
+  dsn: string;
+  exchange: string;
+  connectionName: string;
+  logLevel?: LogLevel;
+  logger?: ILogger;
+}
+
+interface IChannelSpec {
+  name: string;
+}
+
+interface IChannelSpecWithChannl extends IChannelSpec {
+  channel: Promise<amqplib.Channel>;
+}
+
+process.on('unhandledRejection', () => {
+  // just to exist
+});
+
+process.on('uncaughtException', () => {
+  // just to exist
+});
 
 const version = JSON.parse(fs.readFileSync(__dirname + '/../package.json').toString()).version;
 
-export class Connection {
-  private connected = false;
-  private channels: amqp.Channel[] = [];
-  private connection?: amqp.Connection;
-  private options: IConnectionOptions;
-  private initialized = false;
-  private fallbackAdapter!: IFallbackAdapter;
-  private publishers: Publisher[] = [];
+export class Connection extends EventEmitter {
+  private connection: Promise<amqplib.Connection> | undefined;
+  private channels = new Map<string, IChannelSpecWithChannl>();
+  private blocked = false;
 
-  constructor(options: IConnectionOptions) {
-    const optionsDefaults = {
-      processExitWhenUnableToConnectFirstTime: true,
-    };
-
-    this.options = { ...optionsDefaults, ...options };
-    this.setFallbackAdapter(new Memory());
+  constructor(private readonly options: IConnectionOptions) {
+    super();
+    logger.initDefaultLogger(options.logLevel || 'none', options.logger);
   }
 
-  public async createChannel(onClose: closeFn = () => { }): Promise<amqp.Channel> {
-    const connection = await this.getConnection();
+  public async loadChannel(spec: IChannelSpec) {
+    const currentChannel = this.channels.get(spec.name);
 
-    const channel = await connection.createChannel();
-
-    channel.assertExchange(this.options.exchange, this.options.exchangeType);
-
-    this.channels.push(channel);
-
-    const removeChannel = () => {
-      const index = this.channels.findIndex(c => c === channel);
-      this.channels.splice(index, 1);
-    };
-
-    channel.on('error', () => {
-      removeChannel();
-      onClose();
-    });
-
-    channel.on('close', () => {
-      removeChannel();
-      onClose();
-    });
-
-    return channel;
-  }
-
-  public isConnected() {
-    return this.connected;
-  }
-
-  public registerShutdownSignal() {
-    process.once('SIGINT', () => {
-      this.destroy();
-    });
-
-    return this;
-  }
-
-  public setFallbackAdapter(adapter: IFallbackAdapter) {
-    this.fallbackAdapter = adapter;
-    this.fallbackAdapter.setConnection(this);
-    return this;
-  }
-
-  public async storeFallback(publisher: Publisher, message: IMessage<any>): Promise<IPublishResult> {
-    await this.fallbackAdapter.store(publisher.getTopic(), message);
-
-    return { status: true, destination: 'buffer', adapter: 'memory' };
-  }
-
-  public getPublishersTopics() {
-    return this.publishers.map(p => p.getTopic());
-  }
-
-  public getPublishersByTopic(topic: string) {
-    return this.publishers.filter(p => p.getTopic() === topic);
-  }
-
-  public topic(topic: string) {
-    const existingPublisher = this.getPublishersByTopic(topic);
-
-    if (existingPublisher.length > 0) {
-      return existingPublisher[0];
+    if (currentChannel) {
+      return currentChannel.channel;
     }
 
-    const publisher = new Publisher(this, topic);
-    this.publishers.push(publisher);
-    return publisher;
+    const channelData = {
+      ...spec,
+      channel: (async () => {
+        const connection = await this.getConnection();
+        const channel = await connection.createChannel();
+
+        channel.on('close', async () => {
+          logger.debug(`Channel ${spec.name} closed`);
+          this.channels.delete(spec.name);
+        });
+
+        channel.on('error', async (err) => {
+          try {
+            logger.debug(`Channel ${spec.name} errored`);
+            channel.close();
+          } finally {
+            this.channels.delete(spec.name);
+          }
+        });
+
+        channel.on('drain', () => {
+          logger.debug(`Channel ${spec.name} drained`);
+        });
+
+        await channel.assertExchange(this.options.exchange, 'topic', {
+          durable: true,
+        });
+
+        logger.debug(`Channel ${spec.name} created`);
+        return channel;
+      })(),
+    };
+
+    this.channels.set(spec.name, channelData);
+
+    return channelData.channel;
+  }
+
+  public getExchange() {
+    return this.options.exchange;
+  }
+
+  public topic(topicName: string) {
+    return new Publisher(this, topicName);
   }
 
   public queue(name: string) {
@@ -112,103 +106,89 @@ export class Connection {
     return new DelayQueue(this, name);
   }
 
-  public getExchange() {
-    return this.options.exchange;
+  public isBlocked() {
+    return this.blocked;
   }
 
-  public async initialize() {
-    if (this.initialized) {
-      return;
+  public async connect() {
+    await this.getConnection();
+  }
+
+  private async getConnection() {
+    if (!this.connection) {
+      logger.info('Connecting');
+      this.connection = this.doConnection();
     }
 
-    this.initialized = true;
-    let failedConnectionAttempts = 0;
-    let connectionAttempts = 0;
+    return await this.connection;
+  }
 
-    const { dsn, maxConnectionAttempts, connectionName, processExitWhenUnableToConnectFirstTime } = this.options;
+  private async doConnection() {
+    const connectionGenerator = () =>
+      new Promise<amqplib.Connection>(async (resolve, reject) => {
+        let failed = false;
 
-    while (true) {
-      try {
-        connectionAttempts++;
+        setTimeout(() => {
+          logger.debug('Connection failed by timeout');
+          failed = true;
+          reject();
+        }, 5000);
 
-        if (this.connected) {
-          await sleep(1000);
-          continue;
-        }
-
-        const separator = dsn.includes('?') ? '&' : '?';
-
-        const connection = await amqp.connect(`${dsn}${separator}heartbeat=3`, {
+        const amqp = await amqplib.connect(`${this.options.dsn}?heartbeat=1`, {
+          timeout: 1000,
           clientProperties: {
             product: `@eduzz/rabbit\nv${version}\n☕`,
-            // eslint-disable-next-line camelcase
-            connection_name: connectionName,
-            timeout: 2000
+            connection_name: this.options.connectionName,
+            timeout: 1000,
+          },
+        });
+
+        if (failed) {
+          logger.debug('Connection failed');
+          amqp.removeAllListeners();
+          await amqp.close();
+          reject();
+        }
+
+        amqp.on('blocked', () => {
+          this.blocked = true;
+          logger.debug('Connection is blocked');
+        });
+
+        amqp.on('unblocked', () => {
+          this.blocked = false;
+          logger.debug('Connection is released');
+        });
+
+        amqp.on('error', async () => {
+          logger.error('Connection error');
+        });
+
+        amqp.on('close', async () => {
+          logger.info('Connection closed');
+
+          this.channels.clear();
+
+          try {
+            await amqp.close();
+          } finally {
+            this.connection = undefined;
           }
         });
 
-        connection.on('error', async err => {
-          console.log('[rabbit] connection error!', err);
-          this.destroy();
-        });
+        this.emit('connected', amqp);
 
-        connection.on('close', async err => {
-          console.log('[rabbit] connection closed!', err);
-          this.destroy();
-        });
+        logger.info('Connected');
 
-        console.log(`[rabbit] connected: failedConnectionAttempts= ${failedConnectionAttempts}, connectionAttempts=${connectionAttempts}`);
-        connectionAttempts = 0;
-        this.connected = true;
-        this.connection = connection;
-
-      } catch (err) {
-        this.destroy();
-        failedConnectionAttempts++;
-        console.log(`[rabbit] trying to connect, failedConnectionAttempts=${failedConnectionAttempts}, connectionAttempts=${connectionAttempts}`);
-
-        if (processExitWhenUnableToConnectFirstTime && failedConnectionAttempts === 0) {
-          console.log('[rabbit] failed to connect to rabbitmq', err);
-          console.log('[rabbit] finishing the process');
-          process.exit(1);
-        }
-
-        if (maxConnectionAttempts && connectionAttempts > maxConnectionAttempts) {
-          console.log(`[rabbit] number of connection attempts exceeded: ${connectionAttempts}`, err);
-          throw err;
-        }
-      }
-
-      await sleep(1000);
-    }
-  }
-
-  private destroy() {
-    if (!this.connection || !this.connected) {
-      return;
-    }
-
-    this.connected = false;
-
-    const connection = this.connection;
-    (this.connection as any) = null;
-
-    try {
-      this.channels = [];
-      connection.removeAllListeners('error');
-      connection.close().catch(() => { });
-    } catch { }
-  }
-
-  private async getConnection(): Promise<amqp.Connection> {
-    this.initialize();
+        resolve(amqp);
+      });
 
     while (true) {
-      if (this.connection) {
-        return this.connection;
+      try {
+        return await connectionGenerator();
+      } catch (err) {
+        await sleep(1000);
       }
-
-      await sleep(1000);
     }
   }
 }
