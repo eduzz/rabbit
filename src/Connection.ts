@@ -124,69 +124,96 @@ export class Connection extends EventEmitter {
   }
 
   private async doConnection() {
+    let dsn: URL;
+
+    try {
+      dsn = new URL(this.options.dsn);
+      dsn.searchParams.set('heartbeat', '1');
+    } catch (err) {
+      throw new Error('Invalid rabbitMQ DSN');
+    }
+
+    if (!dsn.protocol.match(/^amqps?:/)) {
+      throw new Error('Invalid rabbitMQ DSN Protocol, expected amqp:// or amqps://');
+    }
+
     const connectionGenerator = () =>
       new Promise<amqplib.Connection>(async (resolve, reject) => {
         let failed = false;
 
-        setTimeout(() => {
+        const timeout = setTimeout(() => {
           logger.debug('Connection failed by timeout');
           failed = true;
-          reject();
+          reject({
+            localFailed: true,
+          });
         }, 5000);
 
-        const amqp = await amqplib.connect(`${this.options.dsn}?heartbeat=1`, {
-          timeout: 1000,
-          clientProperties: {
-            product: `@eduzz/rabbit\nv${version}\n☕`,
-            connection_name: this.options.connectionName,
+        try {
+          const amqp = await amqplib.connect(dsn.toString(), {
             timeout: 1000,
-          },
-        });
+            clientProperties: {
+              product: `@eduzz/rabbit\nv${version}\n☕`,
+              connection_name: this.options.connectionName,
+              timeout: 1000,
+            },
+          });
 
-        if (failed) {
-          logger.debug('Connection failed');
-          amqp.removeAllListeners();
-          await amqp.close();
-          reject();
-        }
-
-        amqp.on('blocked', () => {
-          this.blocked = true;
-          logger.debug('Connection is blocked');
-        });
-
-        amqp.on('unblocked', () => {
-          this.blocked = false;
-          logger.debug('Connection is released');
-        });
-
-        amqp.on('error', async () => {
-          logger.error('Connection error');
-        });
-
-        amqp.on('close', async () => {
-          logger.info('Connection closed');
-
-          this.channels.clear();
-
-          try {
+          if (failed) {
+            logger.debug('Connection failed');
+            amqp.removeAllListeners();
             await amqp.close();
-          } finally {
-            this.connection = undefined;
+            reject({
+              localFailed: true,
+            });
           }
-        });
 
-        this.emit('connected', amqp);
+          amqp.on('blocked', () => {
+            this.blocked = true;
+            logger.debug('Connection is blocked');
+          });
 
-        logger.info('Connected');
+          amqp.on('unblocked', () => {
+            this.blocked = false;
+            logger.debug('Connection is released');
+          });
 
-        resolve(amqp);
+          amqp.on('error', async () => {
+            logger.error('Connection error');
+          });
+
+          amqp.on('close', async () => {
+            logger.info('Connection closed');
+
+            this.channels.clear();
+
+            try {
+              await amqp.close();
+            } finally {
+              this.connection = undefined;
+            }
+          });
+
+          this.emit('connected', amqp);
+
+          logger.info('Connected');
+
+          resolve(amqp);
+        } catch (err) {
+          reject(err);
+        } finally {
+          clearTimeout(timeout);
+        }
       });
 
     while (true) {
       try {
         return await connectionGenerator();
-      } catch (err) {
+      } catch (err: any) {
+        if (!err.localFailed) {
+          throw err;
+        }
+
         await sleep(1000);
       }
     }

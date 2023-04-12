@@ -9,9 +9,9 @@ import { sleep } from './fn';
     logLevel: 'debug',
   });
 
-  await connection.connect();
-
   try {
+    await connection.connect();
+
     await connection
       .queue('blabla')
       .topic('xpto')
