@@ -1,5 +1,3 @@
-import { Connection } from './Connection';
-
-export default {
-  Connection,
-};
+export * from './Connection';
+export * from './Queue';
+export * from './Publisher';

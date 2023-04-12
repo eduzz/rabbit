@@ -45,8 +45,8 @@ export class Queue {
       this.genrateQueueNames();
 
       await this.configureNackQueue(this.connection.getExchange(), channel);
-      await this.configureQueue(this.connection.getExchange(), channel);
       await this.configureDLQQueue(channel);
+      await this.configureQueue(this.connection.getExchange(), channel);
 
       await channel.prefetch(this.options.prefetch);
 
@@ -91,6 +91,8 @@ export class Queue {
     this.connection.on('connected', async () => {
       const oldChannel = channel;
       const newChannel = await this.getChannel();
+
+      logger.debug(`Channel connected ${this.baseQueueName}`);
 
       if (newChannel === channel) {
         return;
@@ -217,7 +219,7 @@ export class Queue {
 
     let args: Record<string, any> = {};
 
-    if (this.options.retryTimeout) {
+    if (this.options.retryTimeout > 0) {
       args = {
         'x-dead-letter-exchange': exchange,
         'x-dead-letter-routing-key': this.options.names.retryTopic,

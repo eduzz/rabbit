@@ -65,7 +65,10 @@ export class Connection extends EventEmitter {
 
         channel.on('error', async (err) => {
           try {
-            logger.debug(`Channel ${spec.name} errored`);
+            logger.error({
+              message: `Channel ${spec.name} errored`,
+              error: err,
+            });
             channel.close();
           } finally {
             this.channels.delete(spec.name);
