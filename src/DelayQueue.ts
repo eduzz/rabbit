@@ -24,6 +24,7 @@ export class DelayQueue {
 
   public useTimeoutFromMessage() {
     this.options.timeout = -1;
+    return this;
   }
 
   public from(topic: string) {
