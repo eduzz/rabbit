@@ -127,7 +127,7 @@ export class Connection extends EventEmitter {
     let dsn: URL;
 
     try {
-      dsn = new URL(this.options.dsn);
+      dsn = new URL(`${this.options.dsn}`.trim());
       dsn.searchParams.set('heartbeat', '1');
     } catch (err) {
       throw new Error('Invalid rabbitMQ DSN');
@@ -141,21 +141,23 @@ export class Connection extends EventEmitter {
       new Promise<amqplib.Connection>(async (resolve, reject) => {
         let failed = false;
 
+        const localFailed = {
+          localFailed: true,
+        };
+
         const timeout = setTimeout(() => {
-          logger.debug('Connection failed by timeout');
+          logger.error('Connection failed by timeout');
           failed = true;
-          reject({
-            localFailed: true,
-          });
+          reject(localFailed);
         }, 5000);
 
         try {
           const amqp = await amqplib.connect(dsn.toString(), {
-            timeout: 1000,
+            timeout: 7000,
             clientProperties: {
               product: `@eduzz/rabbit\nv${version}\n☕`,
               connection_name: this.options.connectionName,
-              timeout: 1000,
+              timeout: 7000,
             },
           });
 
@@ -163,9 +165,7 @@ export class Connection extends EventEmitter {
             logger.debug('Connection failed');
             amqp.removeAllListeners();
             await amqp.close();
-            reject({
-              localFailed: true,
-            });
+            reject();
           }
 
           amqp.on('blocked', () => {
@@ -199,7 +199,12 @@ export class Connection extends EventEmitter {
           logger.info('Connected');
 
           resolve(amqp);
-        } catch (err) {
+        } catch (err: any) {
+          if (err.code === 'EAI_AGAIN') {
+            logger.error('Connection failed by, no internet connection');
+            return reject(localFailed);
+          }
+
           reject(err);
         } finally {
           clearTimeout(timeout);
