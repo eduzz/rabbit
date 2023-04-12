@@ -14,8 +14,16 @@ export class DelayQueue {
   }
 
   public timeout(value: number) {
+    if (value <= 0) {
+      throw new Error('You must specify a positive timeout');
+    }
+
     this.options.timeout = value;
     return this;
+  }
+
+  public useTimeoutFromMessage() {
+    this.options.timeout = -1;
   }
 
   public from(topic: string) {
@@ -37,8 +45,8 @@ export class DelayQueue {
       throw new Error('You must specify an destination topic');
     }
 
-    if (this.options.timeout <= 0) {
-      throw new Error('You must specify a positive timeout');
+    if (this.options.timeout === 0) {
+      throw new Error('You must specify a timeout or set to use message timeout');
     }
 
     const ch = await this.connection.loadChannel({
@@ -50,8 +58,11 @@ export class DelayQueue {
     const args: Record<string, any> = {
       'x-dead-letter-exchange': exchange,
       'x-dead-letter-routing-key': this.options.toTopic,
-      'x-message-ttl': this.options.timeout,
     };
+
+    if (this.options.timeout > 0) {
+      args['x-message-ttl'] = this.options.timeout;
+    }
 
     await ch.assertQueue(this.options.name, {
       durable: true,
