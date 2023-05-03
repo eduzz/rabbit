@@ -25,15 +25,21 @@ interface IChannelSpecWithChannl extends IChannelSpec {
   channel: Promise<amqplib.Channel>;
 }
 
-process.on('unhandledRejection', () => {
-  // just to exist
+process.on('unhandledRejection', (...args) => {
+  console.log('[@eduzz/rabbit] unhandledRejection', args);
 });
 
-process.on('uncaughtException', () => {
-  // just to exist
+process.on('uncaughtException', (...args) => {
+  console.log('[@eduzz/rabbit] uncaughtException', args);
 });
 
-const version = JSON.parse(fs.readFileSync(__dirname + '/../package.json').toString()).version;
+let version = 'undefined';
+
+try {
+  version = JSON.parse(fs.readFileSync(__dirname + '/../package.json').toString()).version;
+} catch (err) {
+  // unknown environment
+}
 
 export class Connection extends EventEmitter {
   private connection: Promise<amqplib.Connection> | undefined;

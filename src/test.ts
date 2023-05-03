@@ -13,12 +13,8 @@ import { sleep } from './fn';
     await connection.connect();
 
     await connection
-      .queue('blabla')
+      .queue('adasdasdqewwq')
       .topic('xpto')
-      .durable()
-      .prefetch(100)
-      .retryTimeout(10000)
-      .deadLetterAfter(10)
       .listen(async (payload) => {
         console.log('RECEIVED', payload);
         await sleep(1000);
