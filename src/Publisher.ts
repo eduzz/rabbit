@@ -1,3 +1,5 @@
+import { Channel } from 'amqplib';
+
 import { Connection } from './Connection';
 import { sleep } from './fn';
 import { logger } from './Logger';
@@ -6,6 +8,7 @@ interface ISendMessage<T = unknown> {
   payload: T;
   expiration?: number;
   priority?: number;
+  drainTimeout?: number;
 }
 
 interface IFullOptions<T = unknown> extends ISendMessage<T> {
@@ -17,6 +20,7 @@ export class Publisher {
     topic: '',
     persistent: false,
     maxAttempts: 100,
+    drainTimeout: 30_000,
   };
 
   constructor(private readonly connection: Connection, topic: string) {
@@ -33,6 +37,11 @@ export class Publisher {
     return this;
   }
 
+  public drainTimeout(timeoutInMs: number) {
+    this.options.drainTimeout = timeoutInMs;
+    return this;
+  }
+
   public async send(data: ISendMessage): Promise<void> {
     const options: IFullOptions = {
       ...data,
@@ -44,40 +53,53 @@ export class Publisher {
     }
 
     let result = false;
-    let attempts = 0;
 
     do {
-      attempts++;
-
-      if (attempts > this.options.maxAttempts) {
-        throw new Error(`Failed to send message to queue after ${attempts} attempts.`);
+      if (this.connection.isBlocked()) {
+        await sleep(100);
+        continue;
       }
 
-      try {
-        if (this.connection.isBlocked()) {
-          await sleep(100);
+      const channel = await this.connection.loadChannel({
+        name: '__topic__',
+      });
+
+      const msg = Buffer.from(JSON.stringify(data.payload));
+
+      result = channel.publish(this.connection.getExchange(), this.options.topic, msg, {
+        ...options,
+        priority: data.priority,
+      });
+
+      if (!result) {
+        try {
+          await this.waitDrain(channel);
           continue;
+        } catch (err) {
+          logger.error({
+            message: 'DRAIN TIMEOUT, Waiting',
+          });
         }
-
-        const channel = await this.connection.loadChannel({
-          name: '__topic__',
-        });
-
-        const msg = Buffer.from(JSON.stringify(data.payload));
-
-        result = channel.publish(this.connection.getExchange(), this.options.topic, msg, {
-          ...options,
-          priority: data.priority,
-        });
-
-        logger.debug({
-          message: 'SENT',
-          success: result,
-          data,
-        });
-      } catch (err) {
-        // just to be
       }
+
+      logger.debug({
+        message: 'SENT',
+        success: result,
+        data,
+      });
     } while (!result);
+  }
+
+  private async waitDrain(channel: Channel) {
+    return new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error('Timeout'));
+      }, this.options.drainTimeout);
+
+      channel.on('drain', () => {
+        clearTimeout(timeout);
+        resolve();
+      });
+    });
   }
 }
