@@ -96,7 +96,7 @@ export class Publisher {
         reject(new Error('Timeout'));
       }, this.options.drainTimeout);
 
-      channel.on('drain', () => {
+      channel.once('drain', () => {
         clearTimeout(timeout);
         resolve();
       });
