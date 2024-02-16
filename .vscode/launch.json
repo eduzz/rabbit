@@ -1,0 +1,18 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "address": "127.0.0.1",
+      "localRoot": "${workspaceFolder}",
+      "name": "Debug",
+      "port": 9229,
+      "remoteRoot": "/app",
+      "request": "attach",
+      "restart": true,
+      "skipFiles": [
+        "<node_internals>/**"
+      ],
+      "type": "pwa-node"
+    }
+  ]
+}
