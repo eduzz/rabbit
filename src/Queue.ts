@@ -29,7 +29,7 @@ export class Queue {
   }
 
   public async listen<T = unknown>(callback: (data: T, message?: amqp.ConsumeMessage) => Promise<boolean>) {
-    if (this.options.retryTimeout > 0 && this.options.deadLetterAfter <= 0) {
+    if (this.hasTimeout() && !this.hasDeadLetter()) {
       throw new Error('If you use retryTimeout, you need to specify a deadLetterAfter');
     }
 
@@ -197,7 +197,7 @@ export class Queue {
   }
 
   private async configureDLQQueue(ch: amqp.Channel) {
-    if (this.options.deadLetterAfter < 1) {
+    if (!this.hasDeadLetter()) {
       return;
     }
 
@@ -219,7 +219,7 @@ export class Queue {
 
     let args: Record<string, any> = {};
 
-    if (this.options.retryTimeout > 0) {
+    if (this.hasTimeout()) {
       args = {
         'x-dead-letter-exchange': exchange,
         'x-dead-letter-routing-key': this.options.names.retryTopic,
@@ -255,13 +255,13 @@ export class Queue {
       await ch.bindQueue(this.options.names.queueName, exchange, topic);
     }
 
-    if (this.options.enableNack && this.options.retryTimeout) {
+    if (this.options.enableNack && this.hasTimeout()) {
       await ch.bindQueue(this.options.names.queueName, exchange, this.options.names.retryTopic);
     }
   }
 
   private async handleFailedMessage(channel: amqp.Channel, msg: amqp.ConsumeMessage) {
-    if (!msg.properties?.headers['x-death']) {
+    if (!this.hasDeadLetter() || !msg.properties?.headers['x-death']) {
       channel.nack(msg, false, false);
       return;
     }
@@ -275,5 +275,13 @@ export class Queue {
     }
 
     channel.nack(msg, false, false);
+  }
+
+  private hasTimeout() {
+    return this.options.retryTimeout > 0;
+  }
+
+  private hasDeadLetter() {
+    return this.options.deadLetterAfter > 0;
   }
 }

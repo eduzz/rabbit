@@ -1,39 +1,32 @@
 import { Connection } from './Connection';
-import { sleep } from './fn';
 
-(async () => {
-  const connection = new Connection({
-    dsn: 'amqps://doehrbmi:1sfqvtXmdi8MCz0xOJ80r-6utLBjfj24@moose.rmq.cloudamqp.com/doehrbmi',
-    exchange: 'xpto',
-    connectionName: 'yay',
-    logLevel: 'debug',
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const connection = new Connection({
+  dsn: 'amqp://guest:guest@rabbitmq/test',
+  exchange: 'test',
+  connectionName: 'test',
+});
+
+let count = 0;
+connection
+  .queue('events')
+  .topic('event.sent')
+  .durable(true)
+  .prefetch(100)
+  .retryTimeout(1)
+  .deadLetterAfter(5000)
+  .listen(async (message) => {
+    count++;
+    console.log('count:', count);
+    throw new Error('error');
   });
 
-  try {
-    await connection.connect();
-
-    await connection
-      .queue('adasdasdqewwq')
-      .topic('xpto')
-      .listen(async (payload) => {
-        console.log('RECEIVED', payload);
-        await sleep(1000);
-
-        return true;
-      });
-
-    await connection.delayQueue('myNiceDelayQueue').timeout(30000).from('xpto.from').to('xpto').create();
-
-    const publisher = connection.topic('xpto').persistent();
-
-    let id = 0;
-
-    setInterval(async () => {
-      await publisher.send({
-        payload: { x: ++id },
-      });
-    }, 1000);
-  } catch (err) {
-    console.log(err);
-  }
+(async () => {
+  const publisher = connection.topic('event.sent').persistent();
+  console.log('sending message');
+  await sleep(3000);
+  await publisher.send({ payload: 'message' });
 })();
+
+console.log('started');
