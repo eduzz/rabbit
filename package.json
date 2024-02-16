@@ -2,7 +2,7 @@
   "name": "@eduzz/rabbit",
   "private": false,
   "description": "An simplified amqp client with reconnections and fallback",
-  "version": "0.4.0",
+  "version": "1.0.0-beta.10",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "license": "MIT",
@@ -10,29 +10,34 @@
     "format": "prettier-eslint src/**/*.ts --write",
     "lint": "eslint --ext .ts src",
     "build": "tsc",
-    "prepare": "tsc",
-    "test": "tsnd --inspect=0.0.0.0:9229 --respawn --no-notify --poll --no-deps --ignore-watch node_modules --transpile-only src/test.ts"
+    "prepare": "tsc"
   },
   "devDependencies": {
-    "@types/amqplib": "^0.10.0",
-    "@types/node": "^18.11.9",
-    "@typescript-eslint/eslint-plugin": "^5.43.0",
-    "@typescript-eslint/parser": "^5.43.0",
+    "@eduzz/eslint-config-houston": "^1.0.14",
+    "@types/amqplib": "^0.10.1",
+    "@types/node": "^18.15.11",
+    "@types/winston": "^2.4.4",
+    "@typescript-eslint/eslint-plugin": "^5.58.0",
+    "@typescript-eslint/parser": "^5.58.0",
     "amqplib": "^0.10.3",
     "babel-eslint": "^10.1.0",
-    "eslint": "^8.27.0",
-    "eslint-config-prettier": "^8.5.0",
+    "eslint": "^8.38.0",
+    "eslint-config-prettier": "^8.8.0",
+    "eslint-plugin-import": "^2.27.5",
     "eslint-plugin-prettier": "^4.2.1",
-    "prettier": "^2.7.1",
+    "eslint-plugin-sonarjs": "^0.19.0",
+    "eslint-plugin-unused-imports": "^2.0.0",
+    "prettier": "^2.8.7",
     "prettier-eslint-cli": "^7.1.0",
     "ts-node": "^10.9.1",
     "ts-node-dev": "^2.0.0",
-    "typescript": "^4.9.3"
+    "typescript": "^5.0.4"
   },
   "peerDependencies": {
-    "amqplib": "^0.10"
+    "winston": "^2"
   },
   "keywords": [
     "amqp"
-  ]
+  ],
+  "dependencies": {}
 }

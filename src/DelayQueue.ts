@@ -1,30 +1,29 @@
 import { Connection } from './Connection';
-import { DefaultChannel } from './DefaultChannel';
-import { IDelayQueueOptions } from './interfaces/IDelayQueueOptions';
+import { logger } from './Logger';
 
-export class DelayQueue extends DefaultChannel {
-  private options: IDelayQueueOptions;
+export class DelayQueue {
+  private options = {
+    name: '',
+    fromTopic: '',
+    toTopic: '',
+    timeout: 0,
+  };
 
-  constructor(connection: Connection, name: string) {
-    super();
-    this.connection = connection;
-
-    this.options = {
-      name,
-      fromTopic: '',
-      toTopic: '',
-      durable: true,
-      timeout: 0
-    };
-  }
-
-  public durable(durable: boolean = true) {
-    this.options.durable = durable;
-    return this;
+  constructor(private readonly connection: Connection, name: string) {
+    this.options.name = name;
   }
 
   public timeout(value: number) {
+    if (value <= 0) {
+      throw new Error('You must specify a positive timeout');
+    }
+
     this.options.timeout = value;
+    return this;
+  }
+
+  public useTimeoutFromMessage() {
+    this.options.timeout = -1;
     return this;
   }
 
@@ -43,36 +42,38 @@ export class DelayQueue extends DefaultChannel {
       throw new Error('You must specify an source topic');
     }
 
-    if (!this.options.fromTopic) {
+    if (!this.options.toTopic) {
       throw new Error('You must specify an destination topic');
     }
 
-    if (this.options.timeout === -1) {
-      this.options.timeout = undefined;
+    if (this.options.timeout === 0) {
+      throw new Error('You must specify a timeout or set to use message timeout');
     }
 
-    if (this.options.timeout !== undefined && this.options.timeout <= 0) {
-      throw new Error('You must specify a positive timeout');
-    }
+    const ch = await this.connection.loadChannel({
+      name: `__delay__${this.options.fromTopic}`,
+    });
 
-    const ch = await this.getChannel();
     const exchange = this.connection.getExchange();
 
     const args: Record<string, any> = {
       'x-dead-letter-exchange': exchange,
-      'x-dead-letter-routing-key': this.options.toTopic
+      'x-dead-letter-routing-key': this.options.toTopic,
     };
 
-    if (this.options.timeout !== undefined && this.options.timeout > 0) {
+    if (this.options.timeout > 0) {
       args['x-message-ttl'] = this.options.timeout;
     }
 
     await ch.assertQueue(this.options.name, {
-      durable: this.options.durable,
+      durable: true,
       autoDelete: false,
-      arguments: args
+      arguments: args,
     });
 
     await ch.bindQueue(this.options.name, exchange, this.options.fromTopic);
+    await ch.close();
+
+    logger.debug(`Delay queue ${this.options.name} created`);
   }
 }

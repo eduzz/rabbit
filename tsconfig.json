@@ -1,13 +1,33 @@
 {
   "compilerOptions": {
-    "target": "es5",
-    "lib": [
-      "es2015"
-    ],
-    "module": "commonjs",
+    "target": "es2019",
     "declaration": true,
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "removeComments": true,
     "esModuleInterop": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "inlineSourceMap": false,
+    "noImplicitAny": true,
+    "noEmitOnError": true,
+    "noUnusedLocals": true,
+    "importHelpers": true,
+    "sourceMap": false,
+    "alwaysStrict": true,
     "outDir": "./dist",
-    "strict": true
-  }
+    "typeRoots": [
+      "./src/types",
+      "./node_modules/@types"
+    ]
+  },
+  "include": [
+    "./src/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
 }

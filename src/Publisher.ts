@@ -1,67 +1,105 @@
+import { Channel } from 'amqplib';
+
 import { Connection } from './Connection';
-import { DefaultChannel } from './DefaultChannel';
-import { IPublishOptions, DeliveryMode } from './interfaces/IPublishOptions';
-import { IMessage } from './interfaces/IMessage';
-import { IPublishResult } from './interfaces/IPublishResult';
-import { NoExtraProperties } from './types';
+import { sleep } from './fn';
+import { logger } from './Logger';
 
-export class Publisher extends DefaultChannel {
-  private topic: string;
+interface ISendMessage<T = unknown> {
+  payload: T;
+  expiration?: number;
+  priority?: number;
+  drainTimeout?: number;
+}
 
-  private options: IPublishOptions = {
-    deliveryMode: DeliveryMode.Peristent
+interface IFullOptions<T = unknown> extends ISendMessage<T> {
+  persistent: boolean;
+}
+
+export class Publisher {
+  private options = {
+    topic: '',
+    persistent: false,
+    maxAttempts: 100,
+    drainTimeout: 30_000,
   };
 
-  constructor(connection: Connection, topic: string) {
-    super();
-    this.connection = connection;
-    this.topic = topic;
+  constructor(private readonly connection: Connection, topic: string) {
+    this.options.topic = topic;
   }
 
-  public persistent(persist: boolean = true) {
-    this.options.deliveryMode = persist ? DeliveryMode.Peristent : DeliveryMode.NonPersistent;
+  public persistent(isPersistent = true) {
+    this.options.persistent = isPersistent;
     return this;
   }
 
-  public getConnection() {
-    return this.connection;
+  public maxRetryAttempts(max: number) {
+    this.options.maxAttempts = max;
+    return this;
   }
 
-  public getTopic() {
-    return this.topic;
+  public drainTimeout(timeoutInMs: number) {
+    this.options.drainTimeout = timeoutInMs;
+    return this;
   }
 
-  public async send<T = any>(data: NoExtraProperties<IMessage<T>>): Promise<IPublishResult> {
-    this.connection.initialize();
-
-    if (!this.connection.isConnected()) {
-      return this.connection.storeFallback(this, data);
-    }
-
-    const channel = await this.getChannel();
-
-    const msg = Buffer.from(JSON.stringify(data.payload));
-
-    const options = {
-      ...this.options,
-      persistent: this.options.deliveryMode === DeliveryMode.Peristent
+  public async send(data: ISendMessage): Promise<void> {
+    const options: IFullOptions = {
+      ...data,
+      persistent: this.options.persistent,
     };
 
     if (data.expiration) {
       options.expiration = data.expiration;
     }
 
-    try {
-      const result = channel.publish(this.connection.getExchange(), this.topic, msg, {
-        ...options,
-        priority: data.priority
+    let result = false;
+
+    do {
+      if (this.connection.isBlocked()) {
+        await sleep(100);
+        continue;
+      }
+
+      const channel = await this.connection.loadChannel({
+        name: '__topic__',
       });
 
-      if (result) {
-        return { status: true, destination: 'rabbit' };
-      }
-    } catch (err) { }
+      const msg = Buffer.from(JSON.stringify(data.payload));
 
-    return this.connection.storeFallback(this, data);
+      result = channel.publish(this.connection.getExchange(), this.options.topic, msg, {
+        ...options,
+        priority: data.priority,
+      });
+
+      if (!result) {
+        try {
+          await this.waitDrain(channel);
+          continue;
+        } catch (err) {
+          logger.error({
+            message: 'DRAIN TIMEOUT, Waiting',
+          });
+        }
+      }
+
+      logger.debug({
+        message: 'SENT',
+        success: result,
+        data,
+      });
+    } while (!result);
+  }
+
+  private async waitDrain(channel: Channel) {
+    return new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error('Timeout'));
+      }, this.options.drainTimeout);
+
+      channel.once('drain', () => {
+        clearTimeout(timeout);
+        resolve();
+      });
+    });
   }
 }
