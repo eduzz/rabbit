@@ -261,12 +261,14 @@ export class Queue {
   }
 
   private async handleFailedMessage(channel: amqp.Channel, msg: amqp.ConsumeMessage) {
-    if (!msg.properties?.headers['x-death']) {
+    const headers = msg.properties?.headers ?? {};
+
+    if (!headers['x-death']) {
       channel.nack(msg, false, false);
       return;
     }
 
-    const failedAttempts = msg.properties.headers['x-death'][0].count;
+    const failedAttempts = headers['x-death'][0].count;
 
     if (failedAttempts >= this.options.deadLetterAfter) {
       channel.sendToQueue(this.options.names.dlqQueue, msg.content);
