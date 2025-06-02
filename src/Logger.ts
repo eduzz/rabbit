@@ -1,3 +1,4 @@
+
 export type LogLevel = 'none' | 'error' | 'warn' | 'info' | 'verbose' | 'debug' | 'silly';
 
 export interface ILogger {
@@ -34,13 +35,20 @@ class Logger {
     }
 
     try {
-      const winston = await import('winston' as any);
+      const winston = await import('winston');
 
       if (!winston.default) {
         return;
       }
 
-      this.logger = console;
+      const format = winston.default.format;
+      const transports = winston.default.transports;
+
+      this.logger = winston.default.createLogger({
+        level: process.env.LOG_LEVEL || 'info',
+        format: format.combine(format.timestamp(), format.json()),
+        transports: [new transports.Console()],
+      });
     } catch (error) {
       // no winston, no problem
     }

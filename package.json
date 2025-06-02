@@ -2,7 +2,7 @@
   "name": "@eduzz/rabbit",
   "private": false,
   "description": "An simplified amqp client with reconnections and fallback",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "license": "MIT",
@@ -15,15 +15,15 @@
     "prepare": "tsc"
   },
   "dependencies": {
-    "amqplib": "^0.10.8",
-    "tslib": "^2.8.1"
+    "amqplib": "^0.10.8"
   },
   "devDependencies": {
     "@eduzz/eslint-config": "2.4.2",
     "@types/amqplib": "^0.10.7",
     "@types/node": "^22",
     "eslint": "9.28.0",
-    "typescript": "5.8.3"
+    "typescript": "5.8.3",
+    "tslib": "^2.8.1"
   },
   "peerDependencies": {
     "winston": "^3"
