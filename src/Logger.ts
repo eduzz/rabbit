@@ -40,12 +40,7 @@ class Logger {
         return;
       }
 
-      this.logger = winston.default.createLogger({
-        level: loglevel,
-        format: winston.format.json(),
-        defaultMeta: { service: '@eduzz/rabbit' },
-        transports: [new winston.transports.Console()],
-      });
+      this.logger = console;
     } catch (error) {
       // no winston, no problem
     }

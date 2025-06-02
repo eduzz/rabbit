@@ -1,23 +1,19 @@
 {
-  "files.exclude": {
-
-  },
-  "editor.formatOnSave": true,
   "typescript.tsdk": "node_modules/typescript/lib",
-  "eslint.autoFixOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.fixAll.tslint": "explicit",
+    "source.fixAll.eslint": "explicit"
+  },
+  "editor.formatOnPaste": false,
+  "editor.formatOnSave": false,
+  "editor.formatOnType": false,
   "eslint.validate": [
     "javascript",
     "javascriptreact",
-    {
-      "language": "typescript",
-      "autoFix": true
-    },
-    {
-      "language": "typescriptreact",
-      "autoFix": true
-    }
+    "typescript",
+    "typescriptreact"
   ],
-  "editor.codeActionsOnSave": {
-    "source.fixAll.eslint": "explicit"
-  }
+  "cSpell.words": [
+    "anonymization"
+  ]
 }

@@ -43,7 +43,7 @@ try {
 }
 
 export class Connection extends EventEmitter {
-  private connection: Promise<amqplib.Connection> | undefined;
+  private connection: Promise<amqplib.ChannelModel> | undefined;
   private channels = new Map<string, IChannelSpecWithChannl>();
   private blocked = false;
 
@@ -148,7 +148,7 @@ export class Connection extends EventEmitter {
     }
 
     const connectionGenerator = () =>
-      new Promise<amqplib.Connection>(async (resolve, reject) => {
+      new Promise<amqplib.ChannelModel>(async (resolve, reject) => {
         let failed = false;
 
         const localFailed = {
