@@ -2,10 +2,13 @@
   "name": "@eduzz/rabbit",
   "private": false,
   "description": "An simplified amqp client with reconnections and fallback",
-  "version": "1.0.0-beta.10",
+  "version": "1.0.1",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "license": "MIT",
+  "engines": {
+    "node": ">=16.0.0"
+  },
   "scripts": {
     "format": "prettier-eslint src/**/*.ts --write",
     "lint": "eslint --ext .ts src",
@@ -14,12 +17,12 @@
   },
   "devDependencies": {
     "@eduzz/eslint-config-houston": "^1.0.14",
-    "@types/amqplib": "^0.10.1",
+    "@types/amqplib": "^0.10.4",
     "@types/node": "^18.15.11",
     "@types/winston": "^2.4.4",
     "@typescript-eslint/eslint-plugin": "^5.58.0",
     "@typescript-eslint/parser": "^5.58.0",
-    "amqplib": "^0.10.3",
+    "amqplib": "^0.10.4",
     "babel-eslint": "^10.1.0",
     "eslint": "^8.38.0",
     "eslint-config-prettier": "^8.8.0",

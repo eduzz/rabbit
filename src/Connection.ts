@@ -14,6 +14,7 @@ interface IConnectionOptions {
   exchange: string;
   connectionName: string;
   logLevel?: LogLevel;
+  heartbeat?: number;
   logger?: ILogger;
 }
 
@@ -137,7 +138,7 @@ export class Connection extends EventEmitter {
 
     try {
       dsn = new URL(`${this.options.dsn}`.trim());
-      dsn.searchParams.set('heartbeat', '1');
+      dsn.searchParams.set('heartbeat', String(this.options.heartbeat ?? 30));
     } catch (err) {
       throw new Error('Invalid rabbitMQ DSN');
     }
