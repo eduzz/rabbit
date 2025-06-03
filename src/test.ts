@@ -3,7 +3,7 @@ import { sleep } from './fn';
 
 (async () => {
   const connection = new Connection({
-    dsn: 'amqps://doehrbmi:1sfqvtXmdi8MCz0xOJ80r-6utLBjfj24@moose.rmq.cloudamqp.com/doehrbmi',
+    dsn: '',
     exchange: 'xpto',
     connectionName: 'yay',
     logLevel: 'debug',

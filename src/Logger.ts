@@ -2,26 +2,18 @@
 export type LogLevel = 'none' | 'error' | 'warn' | 'info' | 'verbose' | 'debug' | 'silly';
 
 export interface ILogger {
-  info(message: any): any;
-  warn(message: any): any;
-  error(message: any): any;
-  debug(message: any): any;
+  info(message: any, extra?: any): void;
+  warn(message: any, extra?: any): void;
+  error(message: any, extra?: any): void;
+  debug(message: any, extra?: any): void;
 }
 
 class Logger {
   private logger: ILogger = {
-    info: () => {
-      //void
-    },
-    warn: () => {
-      //void
-    },
-    error: () => {
-      //void
-    },
-    debug: () => {
-      //void
-    },
+    info: (_message: any, _extra: any) => { },
+    warn: (_message: any, _extra: any) => { },
+    error: (_message: any, _extra: any) => { },
+    debug: (_message: any, _extra: any) => { },
   };
 
   public async initDefaultLogger(loglevel: LogLevel, logger?: ILogger) {
@@ -33,41 +25,22 @@ class Logger {
       this.logger = logger;
       return;
     }
-
-    try {
-      const winston = await import('winston');
-
-      if (!winston.default) {
-        return;
-      }
-
-      const format = winston.default.format;
-      const transports = winston.default.transports;
-
-      this.logger = winston.default.createLogger({
-        level: process.env.LOG_LEVEL || 'info',
-        format: format.combine(format.timestamp(), format.json()),
-        transports: [new transports.Console()],
-      });
-    } catch (error) {
-      // no winston, no problem
-    }
   }
 
-  public info(message: any) {
-    this.logger?.info(message);
+  public info(message: any, data: any = undefined) {
+    this.logger?.info(message, data);
   }
 
-  public warn(message: any) {
-    this.logger?.warn(message);
+  public warn(message: any, data: any = undefined) {
+    this.logger?.warn(message, data);
   }
 
-  public error(message: any) {
-    this.logger?.error(message);
+  public error(message: any, data: any = undefined) {
+    this.logger?.error(message, data);
   }
 
-  public debug(message: any) {
-    this.logger?.debug(message);
+  public debug(message: any, data: any = undefined) {
+    this.logger?.debug(message, data);
   }
 }
 
